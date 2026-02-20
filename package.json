@@ -3,9 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "install:all": "node scripts/monorepo-manager.mjs install all",
     "dev:service": "npm --prefix apps/assistant-service run dev",
     "dev:web": "npm --prefix apps/personal-luna run dev:host",
+    "build": "node scripts/monorepo-manager.mjs build all",
+    "build:one": "node scripts/monorepo-manager.mjs build",
     "build:web": "npm --prefix apps/personal-luna run build",
+    "update": "node scripts/monorepo-manager.mjs update all",
+    "update:one": "node scripts/monorepo-manager.mjs update",
     "check:sdk": "node --check packages/assistant-sdk/src/index.js",
     "check:service": "node --check apps/assistant-service/src/server.mjs"
   }
