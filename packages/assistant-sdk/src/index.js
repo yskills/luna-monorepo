@@ -64,6 +64,14 @@ export class AssistantSdkClient {
   getVoiceSettings(characterId = 'luna') {
     return this.request(`/voice/settings?characterId=${encodeURIComponent(characterId)}`)
   }
+
+  getTrainingStatus(minCurated = 20) {
+    return this.request(`/training/status?minCurated=${encodeURIComponent(minCurated)}`)
+  }
+
+  getTrainerHealth() {
+    return this.request('/training/lora/provider-health')
+  }
 }
 
 export function createAssistantSdkClient(options = {}) {

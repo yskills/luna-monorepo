@@ -1,80 +1,61 @@
 # Luna Monorepo
 
-Zentrale Verwaltung für 3 deploybare Bausteine:
+## Was ist was?
 
-- `packages/assistant-core` → Core-Library (`@luna/assistant-core`)
-- `apps/assistant-service` → gehostete API (`@luna/assistant-service`)
-- `packages/assistant-sdk` → Frontend-Schnittstelle (`@luna/assistant-sdk`)
-- `apps/personal-luna` → Vue/PWA Frontend (`personal-luna`)
+- `apps/personal-luna` = Vue Frontend
+- `packages/assistant-sdk` = Frontend API-Client (Verbindung zum Backend)
+- `apps/assistant-service` = Node/Express Backend-Service
+- `packages/assistant-core` = Assistant-Logik, die im Service läuft
 
-## Ziel
+Du hast es richtig verstanden: Frontend nutzt SDK → SDK spricht mit Backend-Service.
 
-Management in einem Monorepo, Deployment weiterhin getrennt:
+## Quickstart (lokal, 3 Schritte)
 
-- Backend-Service separat hosten
-- Frontend separat hosten
-
-## Lokale Nutzung
+1) Dependencies installieren
 
 ```bash
 npm install
-npm run dev:service
-npm run dev:web
-```
-
-oder in `apps/personal-luna` direkt `F5` mit `Luna Full Stack (F5)`.
-
-## Monorepo Commands
-
-Alle Komponenten installieren:
-
-```bash
 npm run install:all
 ```
 
-Alle Komponenten bauen/checken:
+2) Service-Env anlegen (einmalig)
 
 ```bash
-npm run build
+copy apps\assistant-service\.env.example apps\assistant-service\.env
 ```
 
-Nur eine Komponente bauen/checken:
+3) Starten
 
-```bash
-npm run build:one -- web
-npm run build:one -- service
-npm run build:one -- sdk
-npm run build:one -- core
-```
+- VS Code: `F5` → `Luna Full Stack (Monorepo F5)`
+- oder Terminal: `npm run dev`
 
-Alle Komponenten updaten:
+Danach:
 
-```bash
-npm run update
-```
+- Frontend: `http://127.0.0.1:5173`
+- Backend Health: `http://127.0.0.1:5050/health`
 
-Nur eine Komponente updaten:
+## Build / Update
 
-```bash
-npm run update:one -- web
-npm run update:one -- service
-npm run update:one -- sdk
-npm run update:one -- core
-```
+- Alles bauen: `npm run build`
+- Nur Frontend bauen: `npm run build:one -- web`
+- Alles updaten: `npm run update`
+- Nur Service updaten: `npm run update:one -- service`
+
+## Für andere Projekte (einfach)
+
+1) SDK installieren: `npm i @luna/assistant-sdk`
+2) API-Base setzen: `VITE_ASSISTANT_API_BASE_URL=https://dein-service/assistant`
+3) `createAssistantSdkClient({ baseUrl })` nutzen und `chat()/getMode()/setMode()` aufrufen
 
 ## Hosting
 
-- Service: `apps/assistant-service`
-- Frontend: `apps/personal-luna`
+- Ja: Frontend und Backend getrennt hosten.
+- Frontend kann z. B. auf GitHub Pages.
+- Backend kann nicht auf GitHub Pages (Pages ist statisch), nutze z. B. Render/Railway/Fly.io/VPS.
 
-Details: `DEPLOY-RUNBOOK-DE.md`
+Einfachster Start (empfohlen): `DEPLOY-QUICKSTART-DE.md`
 
-## Aufräumen nach Migration
+## Häufige Fehler
 
-Wenn dieses Monorepo deine aktive Arbeitsbasis ist, können alte lokale Duplikate gelöscht werden:
-
-- alter Core-Ordner außerhalb Monorepo (du arbeitest dann nur noch in `packages/assistant-core`)
-- alter Service-Ordner außerhalb Monorepo (du arbeitest dann nur noch in `apps/assistant-service`)
-- alter Frontend-Ordner außerhalb Monorepo (du arbeitest dann nur noch in `apps/personal-luna`)
-
-Wichtig: Nur löschen, wenn die Inhalte bereits ins Monorepo übernommen und auf Remote gesichert sind.
+- `Cannot GET /` auf Port 5050 ist normal, nutze `/health` oder `/assistant/...`
+- `Failed to fetch` heißt meist: Service läuft nicht, falsche API-URL oder CORS-Thema

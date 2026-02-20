@@ -2,8 +2,13 @@
   "name": "luna-monorepo",
   "private": true,
   "version": "0.1.0",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
   "scripts": {
     "install:all": "node scripts/monorepo-manager.mjs install all",
+    "dev": "npm run dev:all",
+    "dev:all": "concurrently -k -n SERVICE,WEB -c green,cyan \"npm run dev:service\" \"npm run dev:web\"",
     "dev:service": "npm --prefix apps/assistant-service run dev",
     "dev:web": "npm --prefix apps/personal-luna run dev:host",
     "build": "node scripts/monorepo-manager.mjs build all",
@@ -13,5 +18,8 @@
     "update:one": "node scripts/monorepo-manager.mjs update",
     "check:sdk": "node --check packages/assistant-sdk/src/index.js",
     "check:service": "node --check apps/assistant-service/src/server.mjs"
+  },
+  "dependencies": {
+    "@luna/assistant-core": "file:packages/assistant-core"
   }
 }

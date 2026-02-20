@@ -22,6 +22,9 @@ export class ChatOrchestrator {
       ],
       loading: false,
       lastError: '',
+      backendStatus: 'unknown',
+      trainerStatus: 'unknown',
+      statusDetail: '',
     }
   }
 
@@ -54,10 +57,44 @@ export class ChatOrchestrator {
     await this.applyModePreset(mode, characterId)
   }
 
+  async fetchSystemStatus() {
+    const [healthResult, trainingResult, trainerResult] = await Promise.allSettled([
+      this.apiClient.getHealth(),
+      this.apiClient.getTrainingStatus(20),
+      this.apiClient.getTrainerHealth(),
+    ])
+
+    const backendStatus = healthResult.status === 'fulfilled' && healthResult.value?.ok === true
+      ? 'online'
+      : 'offline'
+
+    const trainingData = trainingResult.status === 'fulfilled' ? trainingResult.value : null
+    const trainerData = trainerResult.status === 'fulfilled' ? trainerResult.value : null
+
+    const trainerStatus = normalizeTrainerStatus(trainerData, trainingData)
+    const curatedCount = Number(trainingData?.status?.counts?.curated ?? 0)
+
+    return {
+      backendStatus,
+      trainerStatus,
+      statusDetail: `curated: ${Number.isFinite(curatedCount) ? curatedCount : 0}`,
+    }
+  }
+
   // Einfache Delegation: UI bleibt schlank, API-Details bleiben im Service.
   async sendChatMessage({ message, mode, characterId }) {
     return this.apiClient.chat({ message, mode, characterId })
   }
+}
+
+function normalizeTrainerStatus(trainerData, trainingData) {
+  const providerRaw = String(trainerData?.provider?.status || '').trim().toLowerCase()
+  if (providerRaw && providerRaw !== 'n/a') return providerRaw
+
+  const trainStateRaw = String(trainingData?.status?.training?.state || '').trim().toLowerCase()
+  if (trainStateRaw) return trainStateRaw
+
+  return 'unknown'
 }
 
 export const chatOrchestrator = new ChatOrchestrator()

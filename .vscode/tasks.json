@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Kill Luna Stack Ports (Monorepo)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/kill-luna-dev-stack.ps1"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

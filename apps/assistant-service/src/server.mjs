@@ -55,6 +55,8 @@ app.get('/health', (_req, res) => {
 })
 
 app.listen(port, host, () => {
+  const localHost = host === '0.0.0.0' ? '127.0.0.1' : host
   process.stdout.write(`Luna Assistant Service läuft auf http://${host}:${port}\n`)
-  process.stdout.write(`API Basis: http://${host}:${port}/assistant\n`)
+  process.stdout.write(`Lokal erreichbar unter: http://${localHost}:${port}\n`)
+  process.stdout.write(`API Basis: http://${localHost}:${port}/assistant\n`)
 })

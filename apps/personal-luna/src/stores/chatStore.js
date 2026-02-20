@@ -12,6 +12,21 @@ export const useChatStore = defineStore('chat', {
       } catch {
         // keep local defaults
       }
+
+      await this.refreshSystemStatus()
+    },
+
+    async refreshSystemStatus() {
+      try {
+        const result = await chatOrchestrator.fetchSystemStatus()
+        this.backendStatus = result.backendStatus
+        this.trainerStatus = result.trainerStatus
+        this.statusDetail = result.statusDetail
+      } catch {
+        this.backendStatus = 'offline'
+        this.trainerStatus = 'unknown'
+        this.statusDetail = ''
+      }
     },
 
     async applyCurrentModePreset() {

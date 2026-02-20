@@ -28,6 +28,18 @@ export class AssistantApiClient {
   async getVoice(characterId) {
     return this.client.getVoiceSettings(characterId)
   }
+
+  async getHealth() {
+    return this.client.health()
+  }
+
+  async getTrainingStatus(minCurated = 20) {
+    return this.client.getTrainingStatus(minCurated)
+  }
+
+  async getTrainerHealth() {
+    return this.client.getTrainerHealth()
+  }
 }
 
 export const assistantApi = new AssistantApiClient()
