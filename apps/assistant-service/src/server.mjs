@@ -54,11 +54,20 @@ const corsOptions = {
 if (!process.env.ASSISTANT_MODE_CONFIG_FILE) {
   const localModeConfigFile = path.resolve(process.cwd(), 'config', 'assistant-mode-config.local.json')
   const exampleModeConfigFile = path.resolve(process.cwd(), 'config', 'assistant-mode-config.example.json')
-  process.env.ASSISTANT_MODE_CONFIG_FILE = existsSync(localModeConfigFile)
-    ? './config/assistant-mode-config.local.json'
-    : './config/assistant-mode-config.example.json'
+  const coreExampleModeConfigFile = path.resolve(process.cwd(), '..', '..', 'packages', 'assistant-core', 'config', 'assistant-mode-config.example.json')
 
-  if (!existsSync(localModeConfigFile) && !existsSync(exampleModeConfigFile)) {
+  const modeConfigCandidates = [
+    localModeConfigFile,
+    exampleModeConfigFile,
+    coreExampleModeConfigFile,
+  ]
+
+  const selectedModeConfigFile = modeConfigCandidates.find((candidate) => existsSync(candidate))
+  if (selectedModeConfigFile) {
+    process.env.ASSISTANT_MODE_CONFIG_FILE = selectedModeConfigFile
+  }
+
+  if (!selectedModeConfigFile) {
     process.stdout.write('[assistant-service] Warnung: Keine Mode-Config-Datei gefunden (local/example).\n')
   }
 }
