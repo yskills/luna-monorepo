@@ -26,9 +26,18 @@ In Render:
    - `PORT=10000` (oder Render Default-Port via `PORT`)
    - `ASSISTANT_CORS_ORIGINS=https://<deine-frontend-domain>`
    - `ASSISTANT_API_KEY=<optional-aber-empfohlen>`
-   - alle LLM/Model Variablen, die du brauchst
+   - LLM (empfohlen für einfachen Start):
+     - `LLM_PROVIDER=openai`
+     - `LLM_MODEL=gpt-4o-mini`
+     - `OPENAI_BASE_URL=https://api.openai.com/v1`
+     - `OPENAI_API_KEY=<dein-key>`
 5. Deploy starten und URL notieren:
    - Beispiel: `https://luna-service.onrender.com`
+
+Fertige Vorlage:
+
+- `apps/assistant-service/.env.render.openai.example`
+- `apps/assistant-service/.env.render.openrouter.example`
 
 Healthcheck:
 
@@ -48,6 +57,10 @@ In Render:
    - `VITE_ASSISTANT_API_BASE_URL=https://<service-domain>/assistant`
    - `VITE_ASSISTANT_API_KEY=<optional-wenn-backend-key-an>`
 5. Deploy starten
+
+Fertige Vorlage:
+
+- `apps/personal-luna/.env.render.example`
 
 ## 4) Test
 
