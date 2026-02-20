@@ -52,7 +52,15 @@ const corsOptions = {
 }
 
 if (!process.env.ASSISTANT_MODE_CONFIG_FILE) {
-  process.env.ASSISTANT_MODE_CONFIG_FILE = './config/assistant-mode-config.local.json'
+  const localModeConfigFile = path.resolve(process.cwd(), 'config', 'assistant-mode-config.local.json')
+  const exampleModeConfigFile = path.resolve(process.cwd(), 'config', 'assistant-mode-config.example.json')
+  process.env.ASSISTANT_MODE_CONFIG_FILE = existsSync(localModeConfigFile)
+    ? './config/assistant-mode-config.local.json'
+    : './config/assistant-mode-config.example.json'
+
+  if (!existsSync(localModeConfigFile) && !existsSync(exampleModeConfigFile)) {
+    process.stdout.write('[assistant-service] Warnung: Keine Mode-Config-Datei gefunden (local/example).\n')
+  }
 }
 
 if (!process.env.ASSISTANT_MEMORY_FILE) {
