@@ -10,19 +10,45 @@ dotenv.config()
 const port = Number(process.env.PORT || 5050)
 const host = String(process.env.HOST || '0.0.0.0').trim()
 const apiKey = String(process.env.ASSISTANT_API_KEY || '').trim()
-const corsOriginsRaw = String(process.env.ASSISTANT_CORS_ORIGINS || '*').trim()
-const corsOrigins = corsOriginsRaw === '*'
-  ? '*'
+
+const normalizeOrigin = (value) => String(value || '')
+  .trim()
+  .replace(/^['\"]+|['\"]+$/g, '')
+  .replace(/\/$/, '')
+
+const corsOriginsRaw = String(process.env.ASSISTANT_CORS_ORIGINS ?? '*').trim()
+const parsedCorsOrigins = corsOriginsRaw === '*'
+  ? ['*']
   : corsOriginsRaw
     .split(',')
-    .map((v) => String(v || '').trim().replace(/\/$/, ''))
+    .map((v) => normalizeOrigin(v))
     .filter(Boolean)
 
+const corsOrigins = parsedCorsOrigins.length > 0 ? parsedCorsOrigins : ['*']
+
+const isCorsOriginAllowed = (requestOrigin) => {
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin)
+  if (!normalizedRequestOrigin) {
+    return true
+  }
+
+  if (corsOrigins.includes('*')) {
+    return true
+  }
+
+  return corsOrigins.includes(normalizedRequestOrigin)
+}
+
 const corsOptions = {
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    if (isCorsOriginAllowed(origin)) {
+      return callback(null, true)
+    }
+    return callback(null, false)
+  },
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Accept', 'Origin'],
 }
 
 if (!process.env.ASSISTANT_MODE_CONFIG_FILE) {
@@ -109,7 +135,7 @@ const buildBackendChecklist = () => {
       id: 'cors-mode',
       label: 'CORS Konfiguration',
       status: 'ok',
-      details: corsOrigins === '*' ? 'Alle Origins erlaubt (*)' : `${corsOrigins.length} Origin(s)`,
+      details: corsOrigins.includes('*') ? 'Alle Origins erlaubt (*)' : `${corsOrigins.length} Origin(s)`,
     },
   ]
 
@@ -124,7 +150,7 @@ const buildBackendChecklist = () => {
 const buildDeployDiagnostics = () => {
   const startUptimeSec = Math.round(process.uptime())
   const hasApiKey = !!apiKey
-  const hasStrictCors = corsOrigins !== '*'
+  const hasStrictCors = !corsOrigins.includes('*')
   const configPath = resolveRuntimePath(process.env.ASSISTANT_MODE_CONFIG_FILE)
   const memoryPath = resolveRuntimePath(process.env.ASSISTANT_MEMORY_FILE)
   const checks = [
