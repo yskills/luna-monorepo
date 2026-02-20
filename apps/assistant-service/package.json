@@ -5,8 +5,8 @@
   "type": "module",
   "main": "src/server.mjs",
   "scripts": {
-    "dev": "node --env-file=.env src/server.mjs",
-    "start": "node src/server.mjs",
+    "dev": "node --preserve-symlinks --preserve-symlinks-main --env-file=.env src/server.mjs",
+    "start": "node --preserve-symlinks --preserve-symlinks-main src/server.mjs",
     "health": "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 5050) + '/health').then(r=>r.text()).then(t=>console.log(t)).catch(e=>{console.error(e.message); process.exit(1);})\""
   },
   "keywords": [],
