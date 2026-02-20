@@ -85,6 +85,91 @@ class LLMClient {
       : ['luna'];
     this.webSearchMaxItems = Math.max(1, Number(webSearchMaxItems || 3));
     this.webSearchTimeoutMs = Math.max(3000, Number(process.env.ASSISTANT_WEB_SEARCH_TIMEOUT_MS || 9000));
+    this.openaiRetryMaxAttempts = Math.max(1, Number(process.env.ASSISTANT_OPENAI_RETRY_ATTEMPTS || 3));
+    this.openaiRetryBaseDelayMs = Math.max(200, Number(process.env.ASSISTANT_OPENAI_RETRY_BASE_DELAY_MS || 1200));
+    this.openaiRetryMaxDelayMs = Math.max(this.openaiRetryBaseDelayMs, Number(process.env.ASSISTANT_OPENAI_RETRY_MAX_DELAY_MS || 10000));
+  }
+
+  sleep(ms = 0) {
+    const waitMs = Math.max(0, Number(ms || 0));
+    return new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  parseRetryAfterMs(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+
+    const asNumber = Number(raw);
+    if (Number.isFinite(asNumber) && asNumber >= 0) {
+      return Math.round(asNumber * 1000);
+    }
+
+    const asDateTs = Date.parse(raw);
+    if (Number.isFinite(asDateTs)) {
+      return Math.max(0, asDateTs - Date.now());
+    }
+
+    return null;
+  }
+
+  getRetryDelayMs(attempt = 1, retryAfterMs = null) {
+    const exponentialDelay = Math.min(
+      this.openaiRetryMaxDelayMs,
+      this.openaiRetryBaseDelayMs * (2 ** Math.max(0, attempt - 1)),
+    );
+    const jitter = Math.floor(Math.random() * 350);
+    const computed = exponentialDelay + jitter;
+    if (!Number.isFinite(retryAfterMs) || retryAfterMs === null) {
+      return computed;
+    }
+    return Math.max(computed, Math.min(this.openaiRetryMaxDelayMs, Math.max(0, retryAfterMs)));
+  }
+
+  isRetryableOpenAIStatus(statusCode = 0) {
+    return statusCode === 429 || (statusCode >= 500 && statusCode <= 599);
+  }
+
+  async postOpenAIWithRetry(payload) {
+    let lastStatus = 0;
+    let lastBody = '';
+
+    for (let attempt = 1; attempt <= this.openaiRetryMaxAttempts; attempt += 1) {
+      const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.openaiApiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        return response;
+      }
+
+      lastStatus = response.status;
+      lastBody = await response.text().catch(() => '');
+      const retryAfterHeader = response.headers?.get('retry-after');
+      const retryAfterMs = this.parseRetryAfterMs(retryAfterHeader);
+      const canRetry = this.isRetryableOpenAIStatus(response.status) && attempt < this.openaiRetryMaxAttempts;
+
+      if (canRetry) {
+        const delayMs = this.getRetryDelayMs(attempt, retryAfterMs);
+        await this.sleep(delayMs);
+        continue;
+      }
+
+      break;
+    }
+
+    if (lastStatus === 429) {
+      throw new Error('LLM request failed with 429 (rate limited). Bitte in wenigen Sekunden erneut versuchen.');
+    }
+
+    const shortBody = String(lastBody || '').slice(0, 180).trim();
+    throw new Error(shortBody
+      ? `LLM request failed with ${lastStatus}: ${shortBody}`
+      : `LLM request failed with ${lastStatus}`);
   }
 
   isEnabled() {
@@ -412,6 +497,10 @@ class LLMClient {
   }
 
   async callOpenAICompatible(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
+    if (!this.openaiApiKey) {
+      throw new Error('OPENAI_API_KEY fehlt für den OpenAI-kompatiblen Provider.');
+    }
+
     const webContext = await this.maybeGetWebContext(user, message);
 
     const payload = {
@@ -430,18 +519,7 @@ class LLMClient {
       ],
     };
 
-    const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.openaiApiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`LLM request failed with ${response.status}`);
-    }
+    const response = await this.postOpenAIWithRetry(payload);
 
     const data = await response.json();
     const reply = String(data?.choices?.[0]?.message?.content || '').trim();
