@@ -1276,11 +1276,16 @@ export default function createAssistantRouter({
           mode,
         });
       } catch (llmError) {
-        return res.status(503).json({
+        const llmErrorMessage = String(llmError?.message || 'LLM request failed').trim();
+        const isRateLimited = /\b429\b|rate\s*limit/i.test(llmErrorMessage);
+        if (isRateLimited) {
+          res.setHeader('Retry-After', '8');
+        }
+        return res.status(isRateLimited ? 429 : 503).json({
           ok: false,
           requestId: req.requestId,
           error: {
-            message: `LLM unavailable: ${llmError.message}`,
+            message: `LLM unavailable: ${llmErrorMessage}`,
           },
         });
       }

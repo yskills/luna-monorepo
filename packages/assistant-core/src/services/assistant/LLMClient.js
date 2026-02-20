@@ -88,6 +88,9 @@ class LLMClient {
     this.openaiRetryMaxAttempts = Math.max(1, Number(process.env.ASSISTANT_OPENAI_RETRY_ATTEMPTS || 3));
     this.openaiRetryBaseDelayMs = Math.max(200, Number(process.env.ASSISTANT_OPENAI_RETRY_BASE_DELAY_MS || 1200));
     this.openaiRetryMaxDelayMs = Math.max(this.openaiRetryBaseDelayMs, Number(process.env.ASSISTANT_OPENAI_RETRY_MAX_DELAY_MS || 10000));
+    this.openaiMinIntervalMs = Math.max(0, Number(process.env.ASSISTANT_OPENAI_MIN_INTERVAL_MS || 1200));
+    this.lastOpenAIRequestAt = 0;
+    this.openaiRequestChain = Promise.resolve();
   }
 
   sleep(ms = 0) {
@@ -129,19 +132,41 @@ class LLMClient {
     return statusCode === 429 || (statusCode >= 500 && statusCode <= 599);
   }
 
+  async ensureOpenAIRequestSpacing() {
+    if (this.openaiMinIntervalMs <= 0) return;
+    const now = Date.now();
+    const elapsed = now - this.lastOpenAIRequestAt;
+    const waitMs = this.openaiMinIntervalMs - elapsed;
+    if (waitMs > 0) {
+      await this.sleep(waitMs);
+    }
+    this.lastOpenAIRequestAt = Date.now();
+  }
+
+  enqueueOpenAIRequest(task) {
+    const runTask = async () => {
+      await this.ensureOpenAIRequestSpacing();
+      return task();
+    };
+
+    const queued = this.openaiRequestChain.then(runTask, runTask);
+    this.openaiRequestChain = queued.then(() => undefined, () => undefined);
+    return queued;
+  }
+
   async postOpenAIWithRetry(payload) {
     let lastStatus = 0;
     let lastBody = '';
 
     for (let attempt = 1; attempt <= this.openaiRetryMaxAttempts; attempt += 1) {
-      const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
+      const response = await this.enqueueOpenAIRequest(() => fetch(`${this.openaiBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.openaiApiKey}`,
         },
         body: JSON.stringify(payload),
-      });
+      }));
 
       if (response.ok) {
         return response;
