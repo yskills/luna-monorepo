@@ -1,0 +1,12 @@
+{
+  "name": "luna-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:service": "npm --prefix apps/assistant-service run dev",
+    "dev:web": "npm --prefix apps/personal-luna run dev:host",
+    "build:web": "npm --prefix apps/personal-luna run build",
+    "check:sdk": "node --check packages/assistant-sdk/src/index.js",
+    "check:service": "node --check apps/assistant-service/src/server.mjs"
+  }
+}

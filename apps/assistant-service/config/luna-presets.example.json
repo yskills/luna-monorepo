@@ -1,0 +1,15 @@
+{
+  "characterId": "luna",
+  "modes": {
+    "normal": {
+      "presetId": "luna-tsundere"
+    },
+    "uncensored": {
+      "presetId": "luna-uncensored-explicit"
+    }
+  },
+  "security": {
+    "uncensoredRequiresPassword": true,
+    "passwordEnv": "ASSISTANT_UNCENSORED_PASSWORD"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@luna/assistant-sdk",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

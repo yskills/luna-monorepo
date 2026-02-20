@@ -1,0 +1,70 @@
+{
+  "name": "@luna/assistant-core",
+  "version": "0.1.7",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src",
+    "scripts",
+    "config/eval",
+    "config/assistant-mode-config.example.json",
+    "config/luna-presets.example.json",
+    "README.md",
+    "TRAINING-GUIDE-DE.md",
+    "SETUP-OTHER-PROJECTS-DE.md",
+    "RELEASE-GUIDE-DE.md"
+  ],
+  "scripts": {
+    "start": "node src/devServer.js",
+    "dev": "node src/devServer.js",
+    "clean:temp": "node scripts/maintenance/clean-workspace.js",
+    "lora:trainer:ensure": "node scripts/training/ensure-lora-trainer-up.js",
+    "lora:trainer:up": "docker compose -f docker-compose.lora-trainer.yml up -d --build",
+    "lora:trainer:down": "docker compose -f docker-compose.lora-trainer.yml down",
+    "lora:trainer:logs": "docker compose -f docker-compose.lora-trainer.yml logs -f lora-trainer",
+    "eval:gate": "node scripts/eval/run-eval-gate.js",
+    "train:export": "node scripts/training/export-assistant-dataset.js",
+    "train:prepare": "node scripts/training/prepare-training-cycle.js",
+    "train:auto": "node scripts/training/run-auto-training-cycle.js",
+    "train:lora": "node scripts/training/run-lora-training-cycle.js",
+    "train:luna": "node scripts/training/run-train-luna-adapter.js",
+    "optimize:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/optimize-windows.ps1",
+    "optimize:windows:apply": "powershell -ExecutionPolicy Bypass -File scripts/windows/optimize-windows.ps1 -Apply",
+    "optimize:windows:aggressive": "powershell -ExecutionPolicy Bypass -File scripts/windows/optimize-windows.ps1 -Apply -ApplyStartupTrim -PowerPlan high -CpuPercentOnBattery 90 -CpuPercentPluggedIn 100",
+    "smoke:core": "node scripts/smoke/run-smoke-checks.js",
+    "test": "npm run quality:check",
+    "test:contracts": "node --test tests",
+    "quality:check": "npm run smoke:core && npm run test:contracts",
+    "release:check": "npm run clean:temp && npm test && npm pack --dry-run",
+    "release:patch": "npm run release:check && npm version patch",
+    "release:minor": "npm run release:check && npm version minor",
+    "release:major": "npm run release:check && npm version major",
+    "release:push": "git push origin main --follow-tags",
+    "release:full:patch": "npm run release:patch && npm run release:push",
+    "release:full:minor": "npm run release:minor && npm run release:push",
+    "release:full:major": "npm run release:major && npm run release:push"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./v1": "./src/public/v1.js",
+    "./client": "./src/client/assistantApiClient.js",
+    "./service": "./src/service/createAssistantServiceApp.js",
+    "./training/lora": "./src/training/LoraTrainingGateway.js",
+    "./services/CompanionLLMService": "./src/services/CompanionLLMService.js",
+    "./routes/assistantRoutes": "./src/routes/assistantRoutes.js",
+    "./internal/*": null
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.18.0",
+    "ollama": "^0.5.0"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.21.2",
+    "ollama": "^0.5.14"
+  }
+}
