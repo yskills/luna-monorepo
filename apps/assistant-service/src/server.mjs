@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import cors from 'cors'
-import { createAssistantServiceApp } from '@luna/assistant-core/v1'
+import express from 'express'
+import { CompanionLLMService, createAssistantRouter } from '@luna/assistant-core/v1'
 
 dotenv.config()
 
@@ -10,7 +11,17 @@ const apiKey = String(process.env.ASSISTANT_API_KEY || '').trim()
 const corsOriginsRaw = String(process.env.ASSISTANT_CORS_ORIGINS || '*').trim()
 const corsOrigins = corsOriginsRaw === '*'
   ? '*'
-  : corsOriginsRaw.split(',').map((v) => v.trim()).filter(Boolean)
+  : corsOriginsRaw
+    .split(',')
+    .map((v) => String(v || '').trim().replace(/\/$/, ''))
+    .filter(Boolean)
+
+const corsOptions = {
+  origin: corsOrigins,
+  credentials: false,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+}
 
 if (!process.env.ASSISTANT_MODE_CONFIG_FILE) {
   process.env.ASSISTANT_MODE_CONFIG_FILE = './config/assistant-mode-config.local.json'
@@ -20,18 +31,18 @@ if (!process.env.ASSISTANT_MEMORY_FILE) {
   process.env.ASSISTANT_MEMORY_FILE = './data/assistant-memory.sqlite'
 }
 
-const app = createAssistantServiceApp({
-  enableCors: false,
-  mountPath: '/assistant',
-})
+const app = express()
 
-app.use(cors({
-  origin: corsOrigins,
-  credentials: true,
-}))
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
+app.use(express.json({ limit: '1mb' }))
 
 if (apiKey) {
   app.use('/assistant', (req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      return next()
+    }
+
     const auth = String(req.headers.authorization || '').trim()
     const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
     if (!token || token !== apiKey) {
@@ -43,6 +54,10 @@ if (apiKey) {
     return next()
   })
 }
+
+app.use('/assistant', createAssistantRouter({
+  CompanionLLMService,
+}))
 
 app.get('/health', (_req, res) => {
   res.json({
