@@ -65,6 +65,8 @@ npm run train:luna
 - `GET /assistant/voice/config?characterId=...`
 - `GET /assistant/voice/settings?characterId=...`
 - `POST /assistant/voice/settings`
+- `GET /assistant/settings?characterId=...`
+- `POST /assistant/settings` (z. B. `{ "characterId": "luna", "language": "en" }`)
 - `GET /assistant/luna/presets`
 - `POST /assistant/luna/presets/apply`
 - `POST /assistant/luna/ingest`

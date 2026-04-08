@@ -352,16 +352,16 @@ class LLMClient {
   buildWebContextFromResults(results = [], sourceName = 'Web', query = '') {
     const nowUtc = new Date().toISOString();
     if (!Array.isArray(results) || !results.length) {
-      return `Web-Kontext (${sourceName}):\n- Keine verwertbaren Live-Treffer für "${this.normalizeWhitespace(query)}".\n- Abrufzeit (UTC): ${nowUtc}`;
+      return `Web context (${sourceName}):\n- No usable live matches for "${this.normalizeWhitespace(query)}".\n- Retrieved at (UTC): ${nowUtc}`;
     }
 
-    const lines = [`Web-Kontext (${sourceName}):`, `- Suchanfrage: ${this.normalizeWhitespace(query)}`, `- Abrufzeit (UTC): ${nowUtc}`];
+    const lines = [`Web context (${sourceName}):`, `- Search query: ${this.normalizeWhitespace(query)}`, `- Retrieved at (UTC): ${nowUtc}`];
     results.slice(0, this.webSearchMaxItems).forEach((item, idx) => {
-      const title = this.normalizeWhitespace(item?.title || 'Ohne Titel');
+      const title = this.normalizeWhitespace(item?.title || 'Untitled');
       const snippet = this.normalizeWhitespace(item?.snippet || '');
       const url = this.normalizeWhitespace(item?.url || '');
       lines.push(`- [${idx + 1}] ${title}${snippet ? ` — ${snippet}` : ''}`);
-      if (url) lines.push(`  Quelle: ${url}`);
+      if (url) lines.push(`  Source: ${url}`);
     });
     return lines.join('\n');
   }

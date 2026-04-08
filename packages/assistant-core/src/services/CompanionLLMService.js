@@ -164,8 +164,8 @@ const LUNA_BEHAVIOR_PRESETS = [
       'Luna should stay supportive, honest and practical.',
     ],
     instructions: [
-      'Priorisiere Klarheit vor Show-Effekt.',
-      'Arbeite in kurzen Schritten mit konkret nächster Aktion.',
+      'Prioritize clarity over showmanship.',
+      'Work in short steps and always provide one concrete next action.',
     ],
   },
   {
@@ -182,7 +182,7 @@ const LUNA_BEHAVIOR_PRESETS = [
       'Ask one strong reflection question when useful.',
     ],
     instructions: [
-      'Nutze Plan- und Rückblick-Format, wenn der User unsicher ist.',
+      'Use a plan-and-retrospective format when the user is uncertain.',
     ],
   },
   {
@@ -199,7 +199,7 @@ const LUNA_BEHAVIOR_PRESETS = [
       'Prefer root-cause fixes over surface patches.',
     ],
     instructions: [
-      'Antworten technisch-präzise mit klaren nächsten Aktionen.',
+      'Answer with technical precision and clear next actions.',
     ],
   },
   {
@@ -216,8 +216,8 @@ const LUNA_BEHAVIOR_PRESETS = [
       'Luna should feel like a cute e-girl companion with warm, playful tone.',
     ],
     instructions: [
-      'Nutze eine süße, leichte Sprache ohne unklar zu werden.',
-      'Bleibe hilfreich, präzise und mit klarem nächsten Schritt.',
+      'Use a cute, light tone without becoming vague.',
+      'Stay helpful, precise, and include a clear next step.',
     ],
   },
   {
@@ -234,8 +234,8 @@ const LUNA_BEHAVIOR_PRESETS = [
       'Luna keeps a tsundere vibe: cheeky, witty, still supportive and useful.',
     ],
     instructions: [
-      'Nutze freche, tsundere Formulierungen mit klarer Struktur.',
-      'Gib immer konkrete Hilfe statt nur Roleplay.',
+      'Use cheeky tsundere phrasing with clear structure.',
+      'Always provide concrete help instead of pure roleplay.',
     ],
   },
   {
@@ -252,8 +252,8 @@ const LUNA_BEHAVIOR_PRESETS = [
       'In uncensored mode Luna may be explicit, direct, and intense while staying respectful.',
     ],
     instructions: [
-      'Im uncensored Modus darfst du expliziter und direkter formulieren.',
-      'Bleibe klar, konsensbasiert und ohne manipulative Dynamik.',
+      'In uncensored mode, you may respond more explicitly and directly.',
+      'Stay clear, consent-based, and avoid manipulative dynamics.',
     ],
   },
 ];
@@ -493,9 +493,11 @@ export class CompanionLLMService {
   getSettings(userId = 'default') {
     const modeState = this.getMode(userId);
     const voice = this.getVoiceSettings(userId);
+    const modeConfig = this.loadModeConfig();
     return {
       mode: modeState.mode,
       character: modeState.character,
+      language: modeConfig?.assistant?.language || 'en',
       llmEnabled: this.isEnabled(),
       llm: {
         provider: this.provider,
@@ -617,6 +619,10 @@ export class CompanionLLMService {
         spec.onUpdate(boundedValue);
       }
     });
+
+    if (updates.language != null) {
+      this.modeConfigRepository.setAssistantLanguage(updates.language);
+    }
 
     if (updates.voice && typeof updates.voice === 'object') {
       this.updateVoiceSettings(userId, updates.voice);

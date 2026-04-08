@@ -34,6 +34,18 @@ VITE_ASSISTANT_API_BASE_URL=http://127.0.0.1:5050/assistant
 VITE_ASSISTANT_API_KEY=
 ```
 
+## Sprache umschalten
+
+Die Reply-Sprache kann zur Laufzeit über das Settings-Endpoint umgeschaltet werden.
+
+```bash
+curl -X POST http://127.0.0.1:5050/assistant/settings \
+	-H "Content-Type: application/json" \
+	-d '{"characterId":"luna","language":"en"}'
+```
+
+`language` akzeptiert ISO-ähnliche Codes wie `en`, `de`, `en-us`, `pt-br`.
+
 ## Sicherheit
 
 - `ASSISTANT_API_KEY` setzen, damit `/assistant/*` geschützt ist.

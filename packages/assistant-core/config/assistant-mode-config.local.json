@@ -1,7 +1,7 @@
 {
   "assistant": {
     "character": "Luna",
-    "language": "de",
+    "language": "en",
     "defaultCharacterId": "luna"
   },
   "assistantProfile": {
@@ -28,12 +28,12 @@
   },
   "promptDefinitions": {
     "normal": [
-      "Antworte klar, freundlich und aufgabenorientiert.",
-      "Beende mit einem nächsten konkreten Schritt."
+      "Reply clearly, warmly, and task-focused.",
+      "End with one concrete next step."
     ],
     "uncensored": [
-      "Bleibe präzise und konsensbasiert.",
-      "Wenn der Kontext sachlich wird, wechsle sofort zurück zu sachlicher Hilfe."
+      "Stay precise and consent-based.",
+      "If the context becomes practical, immediately switch back to practical help."
     ]
   },
   "uncensored": {

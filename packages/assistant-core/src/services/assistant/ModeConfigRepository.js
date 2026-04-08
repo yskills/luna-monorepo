@@ -229,6 +229,40 @@ class ModeConfigRepository {
     }
   }
 
+  writeRawConfig(nextConfig = {}) {
+    if (!this.configFilePath) {
+      throw new Error('Missing config file path for writing assistant mode config.');
+    }
+
+    const serialized = `${JSON.stringify(nextConfig, null, 2)}\n`;
+    fs.writeFileSync(this.configFilePath, serialized, 'utf8');
+    this.cachedMtimeMs = null;
+    this.cachedConfig = null;
+  }
+
+  setAssistantLanguage(language = '') {
+    const normalizedLanguage = ModeConfigRepository.toString(language).toLowerCase();
+    if (!normalizedLanguage) {
+      throw new Error('language is required.');
+    }
+
+    if (!/^[a-z]{2,3}(?:-[a-z]{2,4})?$/.test(normalizedLanguage)) {
+      throw new Error('language must be an ISO-like code such as en, de, en-us, or pt-br.');
+    }
+
+    const raw = this.readRawConfig();
+    const assistant = ModeConfigRepository.isPlainObject(raw.assistant)
+      ? { ...raw.assistant }
+      : {};
+    assistant.language = normalizedLanguage;
+    this.writeRawConfig({
+      ...raw,
+      assistant,
+    });
+
+    return this.load();
+  }
+
   load() {
     const stat = fs.statSync(this.configFilePath);
     if (this.cachedConfig && this.cachedMtimeMs === stat.mtimeMs) {

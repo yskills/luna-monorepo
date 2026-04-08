@@ -4,3 +4,6 @@ node_modules/
 **/.env
 **/data/
 *.log
+**/.vite/
+apps/personal-luna/.vscode/
+apps/assistant-service/config/*.local.json

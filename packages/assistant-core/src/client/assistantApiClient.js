@@ -60,6 +60,15 @@ export function createAssistantApiClient({
       return request('/settings', { method: 'POST', body: { characterId, ...(patch || {}) } });
     },
 
+    setLanguage({ characterId = 'luna', language = 'en' } = {}) {
+      return this.updateSettings({
+        characterId,
+        patch: {
+          language,
+        },
+      });
+    },
+
     setProfile({ characterId = 'luna', preferredName = '' } = {}) {
       return request('/profile', { method: 'POST', body: { characterId, preferredName } });
     },

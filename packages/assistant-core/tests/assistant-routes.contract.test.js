@@ -7,6 +7,7 @@ function createMockCompanionService() {
     mode: 'normal',
     characterId: 'luna',
     character: 'Luna',
+    language: 'en',
     tone: 'warm',
     modeExtras: {
       uncensoredInstructions: [],
@@ -53,13 +54,20 @@ function createMockCompanionService() {
     getSettings: () => ({
       llmEnabled: true,
       mode: state.mode,
+      language: state.language,
       memoryOverview: state.memoryOverview,
     }),
-    updateSettings: () => ({
+    updateSettings: (_userId, updates = {}) => {
+      if (updates?.language) {
+        state.language = String(updates.language).toLowerCase();
+      }
+      return {
       llmEnabled: true,
       mode: state.mode,
+      language: state.language,
       memoryOverview: state.memoryOverview,
-    }),
+      };
+    },
     resetAllState: () => ({ profile: { preferredName: '', modeExtras: state.modeExtras } }),
     pruneMemoryByDays: () => state.memoryOverview,
     deleteMemoryByDate: () => state.memoryOverview,
@@ -167,6 +175,15 @@ test('assistant API contracts: core read/write routes', async () => {
     assert.equal(settings.status, 200);
     assert.equal(settings.json.ok, true);
     assert.equal(typeof settings.json.settings, 'object');
+    assert.equal(settings.json.settings.language, 'en');
+
+    const settingsWrite = await apiRequest(baseUrl, '/settings', {
+      method: 'POST',
+      body: { characterId: 'luna', language: 'de' },
+    });
+    assert.equal(settingsWrite.status, 200);
+    assert.equal(settingsWrite.json.ok, true);
+    assert.equal(settingsWrite.json.settings.language, 'de');
 
     const profile = await apiRequest(baseUrl, '/profile', {
       method: 'POST',
