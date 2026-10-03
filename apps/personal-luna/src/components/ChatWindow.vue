@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '../stores/chatStore'
+import PushToTalkButton from './PushToTalkButton.vue'
 
 const store = useChatStore()
 const { messages, loading } = storeToRefs(store)
@@ -10,6 +11,10 @@ const draft = ref('')
 const messageBox = ref(null)
 
 const canSend = computed(() => draft.value.trim().length > 0 && !loading.value)
+
+function onTranscript(text) {
+  draft.value = draft.value.trim() ? `${draft.value.trim()} ${text}` : text
+}
 
 async function send() {
   if (!canSend.value) return
@@ -49,6 +54,7 @@ watch(
         placeholder="Schreib Luna eine Nachricht..."
         @keydown.enter.exact.prevent="send"
       />
+      <PushToTalkButton @transcript="onTranscript" />
       <button type="submit" :disabled="!canSend">Senden</button>
     </form>
   </section>

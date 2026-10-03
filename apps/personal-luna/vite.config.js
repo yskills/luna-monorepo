@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         // API, Login und Status-Seite nie aus dem Service-Worker-Cache bedienen.
-        navigateFallbackDenylist: [/^\/(assistant|auth|backend|health)(\/|$)/],
+        navigateFallbackDenylist: [/^\/(api|assistant|auth|backend|health)(\/|$)/],
       },
       includeAssets: ['vite.svg'],
       manifest: {
@@ -43,6 +43,10 @@ export default defineConfig({
     // changeOrigin bleibt aus: der Backend-CSRF-Schutz vergleicht Origin und Host.
     port: 5173,
     proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5050',
+        changeOrigin: false,
+      },
       '/assistant': {
         target: 'http://127.0.0.1:5050',
         changeOrigin: false,
