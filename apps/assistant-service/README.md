@@ -25,14 +25,11 @@ Health:
 curl http://127.0.0.1:5050/health
 ```
 
-## Frontend-Anbindung
+## Login
 
-Im Vue-Frontend:
-
-```env
-VITE_ASSISTANT_API_BASE_URL=http://127.0.0.1:5050/assistant
-VITE_ASSISTANT_API_KEY=
-```
+Pflicht. `npm run set-password` setzt das Admin-Passwort (nur der Hash landet in `.env`).
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. Alles unter `/assistant` und `/backend` braucht Login.
+Für Server-zu-Server-Jobs gibt es optional `ASSISTANT_API_KEY` (Bearer), nie im Frontend verwenden.
 
 ## Sprache umschalten
 
@@ -40,6 +37,7 @@ Die Reply-Sprache kann zur Laufzeit über das Settings-Endpoint umgeschaltet wer
 
 ```bash
 curl -X POST http://127.0.0.1:5050/assistant/settings \
+	-H "Authorization: Bearer $ASSISTANT_API_KEY" \
 	-H "Content-Type: application/json" \
 	-d '{"characterId":"luna","language":"en"}'
 ```
@@ -48,5 +46,4 @@ curl -X POST http://127.0.0.1:5050/assistant/settings \
 
 ## Sicherheit
 
-- `ASSISTANT_API_KEY` setzen, damit `/assistant/*` geschützt ist.
-- `ASSISTANT_CORS_ORIGINS` auf erlaubte Frontend-Domains begrenzen.
+Siehe `SECURITY-DE.md` im Repo-Root.

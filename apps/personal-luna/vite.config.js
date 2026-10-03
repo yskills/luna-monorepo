@@ -8,6 +8,10 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // API, Login und Status-Seite nie aus dem Service-Worker-Cache bedienen.
+        navigateFallbackDenylist: [/^\/(assistant|auth|backend|health)(\/|$)/],
+      },
       includeAssets: ['vite.svg'],
       manifest: {
         name: 'Personal Luna',
@@ -36,15 +40,24 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0',
+    // changeOrigin bleibt aus: der Backend-CSRF-Schutz vergleicht Origin und Host.
     port: 5173,
     proxy: {
       '/assistant': {
         target: 'http://127.0.0.1:5050',
-        changeOrigin: true,
+        changeOrigin: false,
+      },
+      '/auth': {
+        target: 'http://127.0.0.1:5050',
+        changeOrigin: false,
+      },
+      '/backend': {
+        target: 'http://127.0.0.1:5050',
+        changeOrigin: false,
       },
       '/health': {
         target: 'http://127.0.0.1:5050',
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
   },

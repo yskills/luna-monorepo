@@ -1,0 +1,56 @@
+# Luna auf einem Server (z. B. Oracle Free VM):
+#   1. cp deploy/.env.example deploy/.env  und Werte setzen (Datei ist git-ignored)
+#   2. docker compose run --rm luna node scripts/set-password.mjs --print
+#      und die zwei ausgegebenen Zeilen in deploy/.env eintragen
+#   3. docker compose --profile https up -d
+services:
+  luna:
+    build: .
+    restart: unless-stopped
+    env_file: deploy/.env
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      # Caddy ist der einzige Proxy davor
+      TRUST_PROXY: "1"
+    volumes:
+      - luna-data:/data
+    # Nur lokal am Server erreichbar; nach außen geht es ausschließlich über Caddy (HTTPS).
+    ports:
+      - "127.0.0.1:5050:5050"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    # Kein Port nach außen: nur Luna spricht mit Ollama.
+
+  caddy:
+    profiles: ["https"]
+    image: caddy:2
+    restart: unless-stopped
+    env_file: deploy/.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - luna
+
+volumes:
+  luna-data:
+  ollama-models:
+  caddy-data:
+  caddy-config:

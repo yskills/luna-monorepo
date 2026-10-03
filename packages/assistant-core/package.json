@@ -36,7 +36,7 @@
     "optimize:windows:aggressive": "powershell -ExecutionPolicy Bypass -File scripts/windows/optimize-windows.ps1 -Apply -ApplyStartupTrim -PowerPlan high -CpuPercentOnBattery 90 -CpuPercentPluggedIn 100",
     "smoke:core": "node scripts/smoke/run-smoke-checks.js",
     "test": "npm run quality:check",
-    "test:contracts": "node --test tests",
+    "test:contracts": "node --test tests/*.test.js",
     "quality:check": "npm run smoke:core && npm run test:contracts",
     "release:check": "npm run clean:temp && npm test && npm pack --dry-run",
     "release:patch": "npm run release:check && npm version patch",

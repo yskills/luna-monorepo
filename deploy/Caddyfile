@@ -1,0 +1,6 @@
+# Automatisches HTTPS (Let's Encrypt) für deine Domain, z. B. eine kostenlose DuckDNS-Subdomain.
+{$LUNA_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy luna:5050
+	header -Server
+}

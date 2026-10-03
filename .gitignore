@@ -7,3 +7,5 @@ node_modules/
 **/.vite/
 apps/personal-luna/.vscode/
 apps/assistant-service/config/*.local.json
+deploy/.env
+**/*.sqlite

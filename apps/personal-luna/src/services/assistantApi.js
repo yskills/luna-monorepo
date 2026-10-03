@@ -1,12 +1,28 @@
 import { createAssistantSdkClient } from '@luna/assistant-sdk'
 import { API_BASE_URL } from '../config/api'
 
+export const UNAUTHORIZED_EVENT = 'luna:unauthorized'
+
+// Kein API-Key im Frontend: alles mit VITE_ landet öffentlich im Bundle.
+// Die App authentifiziert sich per HttpOnly-Session-Cookie.
 export class AssistantApiClient {
   constructor({ baseUrl = API_BASE_URL } = {}) {
     this.client = createAssistantSdkClient({
       baseUrl,
-      apiKey: import.meta.env.VITE_ASSISTANT_API_KEY,
+      onUnauthorized: () => window.dispatchEvent(new Event(UNAUTHORIZED_EVENT)),
     })
+  }
+
+  async login(password) {
+    return this.client.login(password)
+  }
+
+  async logout() {
+    return this.client.logout()
+  }
+
+  async me() {
+    return this.client.me()
   }
 
   async chat({ message, mode, characterId }) {

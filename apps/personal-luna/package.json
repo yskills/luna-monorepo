@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@luna/assistant-sdk": "file:../../packages/assistant-sdk",
-    "luna-monorepo": "file:../..",
     "pinia": "^2.3.1",
     "vue": "^3.5.25",
     "vue-router": "^4.6.4"

@@ -12,48 +12,13 @@ Mobile-first Personal Assistant App auf Vue 3 + Vite.
 
 ## Setup
 
-```bash
-npm install
-cp .env.example .env
-npm run dev
-```
+Am besten über das Monorepo starten (siehe `README.md` im Root): `npm run dev` startet Service und App.
+Die App spricht same-origin mit `/assistant` und `/auth` (lokal über den Vite-Proxy auf Port 5050).
 
-## F5 (empfohlen)
+## Login
 
-- Öffne dieses Repo (`personal-luna`) in VS Code.
-- Drücke `F5` und wähle `Luna Full Stack (F5)`.
-- Das startet automatisch:
-	- `luna-assistant-service` (Port 5050)
-	- `personal-luna` Frontend (Port 5173)
-	- Browser-Debug-Session
-- Beim Stoppen werden die Dev-Ports automatisch beendet.
-
-## Architektur (Frontend-only)
-
-- Dieses Repo enthält nur die Vue-App.
-- Das Backend läuft als separater Service (deployte URL).
-- Die App spricht ausschließlich über `VITE_ASSISTANT_API_BASE_URL` mit der API.
-
-## Zielarchitektur (3 Repos)
-
-- `Aissistant` → Core-Library (`@luna/assistant-core`), Routen/LLM/Memory.
-- `luna-assistant-service` → deploybare API, nutzt die Core-Library serverseitig.
-- `personal-luna` → produktive Vue-UI, nutzt nur API/SDK.
-
-## Reuse & Hosting (State of the Art)
-
-- Frontend und Backend getrennt deployen.
-- Backend als eigenständigen Service hosten und in der App nur die API-URL konfigurieren.
-- Optional API-Key über `VITE_ASSISTANT_API_KEY` senden.
-
-## API Verbindung
-
-Setze in `.env`:
-
-```env
-VITE_ASSISTANT_API_BASE_URL=https://your-assistant-service.example.com/assistant
-VITE_ASSISTANT_API_KEY=
-```
+Ohne Login lädt nur die Login-Seite. Das Passwort wird im Service gesetzt (`npm run set-password`),
+die App bekommt danach ein HttpOnly-Session-Cookie. Es gibt keine API-Keys im Frontend.
 
 Erwartete Endpoints:
 

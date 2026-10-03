@@ -21,11 +21,9 @@ const FORCED_CHARACTER_ID = (() => {
 // Absichtlich einfach gehalten, da dieses Modul zustandslos neu startbar sein soll.
 const uncensoredAuthAttempts = new Map();
 
+// req.ip respektiert Express' "trust proxy"-Einstellung. X-Forwarded-For direkt zu lesen
+// würde Angreifern erlauben, das Rate-Limit mit gefälschten Headern zu umgehen.
 function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
@@ -198,7 +196,9 @@ function resolveLoraFiles(runtime) {
 
 function buildAdapterPaths({ adapterOutputDir = '', activeAdapter = '', loraLatest = null } = {}) {
   const activeName = String(activeAdapter || '').trim();
-  const activeAdapterPath = activeName ? path.resolve(adapterOutputDir, activeName) : '';
+  const resolvedActivePath = activeName ? path.resolve(adapterOutputDir, activeName) : '';
+  const insideOutputDir = resolvedActivePath.startsWith(path.resolve(adapterOutputDir) + path.sep);
+  const activeAdapterPath = insideOutputDir ? resolvedActivePath : '';
   const latestExpectedAdapterPath = String(loraLatest?.lora?.expectedAdapterPath || '').trim();
   return {
     adapterOutputDir,
@@ -208,9 +208,30 @@ function buildAdapterPaths({ adapterOutputDir = '', activeAdapter = '', loraLate
   };
 }
 
+// Erlaubte Zeichen für CLI-Argumente. Unter Windows läuft spawnSync mit shell=true,
+// daher dürfen keine Shell-Metazeichen (& | ; > < ` $ " ' Leerzeichen ...) durchkommen.
+const SAFE_CLI_ARG = /^[A-Za-z0-9._:/=@+-]{1,200}$/;
+
+export function assertSafeCliArgs(args = []) {
+  for (const value of args) {
+    const arg = String(value);
+    if (!SAFE_CLI_ARG.test(arg) || arg.includes('..')) {
+      const error = new Error(`Rejected unsafe command argument: ${JSON.stringify(arg.slice(0, 60))}`);
+      error.status = 400;
+      throw error;
+    }
+  }
+}
+
 function runTrainingCommand({ runtime, args = [], timeoutMs = 20 * 60 * 1000 } = {}) {
   // Zentrale Ausführung aller npm-basierten Trainingskommandos,
   // damit Fehlerdarstellung und Parsing überall identisch sind.
+  if (!runtime?.trainingApiEnabled) {
+    const error = new Error('Training commands are disabled (set ASSISTANT_TRAINING_API_ENABLED=true to allow).');
+    error.status = 403;
+    throw error;
+  }
+  assertSafeCliArgs(args);
   const result = spawnSync(runtime.npmCommand, args, {
     cwd: runtime.scriptsWorkingDir,
     encoding: 'utf8',
@@ -282,6 +303,14 @@ function ensureLoraTrainerOnDemand({ runtime, body = {}, timeoutMs = 4 * 60 * 10
     return {
       attempted: false,
       reason: 'disabled-by-config',
+      exitCode: 0,
+    };
+  }
+
+  if (!runtime?.trainingApiEnabled) {
+    return {
+      attempted: false,
+      reason: 'training-api-disabled',
       exitCode: 0,
     };
   }
@@ -394,16 +423,34 @@ async function getLoraProviderHealthSafe(loraGateway) {
   }
 }
 
+function defaultSendErrorResponse(res, statusCode, message, requestId) {
+  return res.status(statusCode).json({ ok: false, requestId, error: { message } });
+}
+
+function defaultFormatUsd(value) {
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `$${numeric.toFixed(2)}` : String(value);
+}
+
 export default function createAssistantRouter({
   CompanionLLMService,
-  AlpacaService,
-  getAlpacaStatus,
-  formatUsd,
-  sendErrorResponse,
-}) {
+  AlpacaService = {
+    getAccount: async () => null,
+    getOrders: async () => [],
+    getPositions: async () => [],
+  },
+  getAlpacaStatus = async () => ({ status: 'disabled', connected: false }),
+  formatUsd = defaultFormatUsd,
+  sendErrorResponse = defaultSendErrorResponse,
+  trainingApiEnabled = parseTruthy(process.env.ASSISTANT_TRAINING_API_ENABLED || 'false'),
+} = {}) {
   const router = express.Router();
   const runtime = resolveRuntimeConfig();
   const loraGateway = new LoraTrainingGateway({ runtime });
+
+  // Trainings-Kommandos starten lokale Prozesse (npm/docker). Auf einem Server standardmäßig aus.
+  runtime.trainingApiEnabled = !!trainingApiEnabled;
 
   const ok = (req, res, payload = {}) => res.json({ ok: true, requestId: req.requestId, ...payload });
   const safe = (handler, errorStatus = 500) => (req, res) => {

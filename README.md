@@ -1,15 +1,18 @@
 # Luna Monorepo
 
+Private Luna-App: nur du kommst rein (Admin-Passwort), alles läuft auf deinem eigenen Server.
+
 ## Was ist was?
 
-- `apps/personal-luna` = Vue Frontend
-- `packages/assistant-sdk` = Frontend API-Client (Verbindung zum Backend)
-- `apps/assistant-service` = Node/Express Backend-Service
-- `packages/assistant-core` = Assistant-Logik, die im Service läuft
+- `apps/personal-luna` = Vue PWA (Frontend)
+- `packages/assistant-sdk` = API-Client fürs Frontend
+- `apps/assistant-service` = Node/Express-Service: Login, API, liefert die Web-App aus
+- `packages/assistant-core` = Assistant-Logik (LLM, Memory, Modes)
 
-Du hast es richtig verstanden: Frontend nutzt SDK → SDK spricht mit Backend-Service.
+Frontend und API laufen auf **derselben Domain**. Der Login ist ein HttpOnly-Session-Cookie,
+im Frontend gibt es keine Keys.
 
-## Quickstart (lokal, 3 Schritte)
+## Quickstart (lokal)
 
 1) Dependencies installieren
 
@@ -18,10 +21,12 @@ npm install
 npm run install:all
 ```
 
-2) Service-Env anlegen (einmalig)
+2) Admin-Passwort setzen (einmalig). Fragt verdeckt ab und schreibt nur den Hash in
+`apps/assistant-service/.env` (git-ignored, wird nie gepusht):
 
 ```bash
-copy apps\assistant-service\.env.example apps\assistant-service\.env
+cd apps/assistant-service
+npm run set-password
 ```
 
 3) Starten
@@ -29,33 +34,22 @@ copy apps\assistant-service\.env.example apps\assistant-service\.env
 - VS Code: `F5` → `Luna Full Stack (Monorepo F5)`
 - oder Terminal: `npm run dev`
 
-Danach:
-
-- Frontend: `http://127.0.0.1:5173`
-- Backend Health: `http://127.0.0.1:5050/health`
+Danach `http://127.0.0.1:5173` öffnen und mit dem Passwort einloggen.
+Lokal ohne HTTPS in `apps/assistant-service/.env` `LUNA_COOKIE_SECURE=false` lassen (Standard außerhalb von Produktion).
 
 ## Build / Update
 
 - Alles bauen: `npm run build`
 - Nur Frontend bauen: `npm run build:one -- web`
 - Alles updaten: `npm run update`
-- Nur Service updaten: `npm run update:one -- service`
-
-## Für andere Projekte (einfach)
-
-1) SDK installieren: `npm i @luna/assistant-sdk`
-2) API-Base setzen: `VITE_ASSISTANT_API_BASE_URL=https://dein-service/assistant`
-3) `createAssistantSdkClient({ baseUrl })` nutzen und `chat()/getMode()/setMode()` aufrufen
 
 ## Hosting
 
-- Ja: Frontend und Backend getrennt hosten.
-- Frontend kann z. B. auf GitHub Pages.
-- Backend kann nicht auf GitHub Pages (Pages ist statisch), nutze z. B. Render/Railway/Fly.io/VPS.
-
-Einfachster Start (empfohlen): `DEPLOY-QUICKSTART-DE.md`
+Ein Server, ein Container-Stack, HTTPS automatisch: siehe `DEPLOY-DE.md`.
+Sicherheitsmodell und Regeln: siehe `SECURITY-DE.md`.
 
 ## Häufige Fehler
 
-- `Cannot GET /` auf Port 5050 ist normal, nutze `/health` oder `/assistant/...`
-- `Failed to fetch` heißt meist: Service läuft nicht, falsche API-URL oder CORS-Thema
+- `401 Login required` → nicht eingeloggt oder Session abgelaufen
+- `403 Origin not allowed` → Frontend und API laufen nicht auf derselben Domain
+- Service startet nicht mit `No admin password configured` → `npm run set-password` ausführen

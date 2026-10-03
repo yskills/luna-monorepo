@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node --preserve-symlinks --preserve-symlinks-main --env-file=.env src/server.mjs",
     "start": "node --preserve-symlinks --preserve-symlinks-main src/server.mjs",
-    "health": "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 5050) + '/health').then(r=>r.text()).then(t=>console.log(t)).catch(e=>{console.error(e.message); process.exit(1);})\""
+    "health": "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 5050) + '/health').then(r=>r.text()).then(t=>console.log(t)).catch(e=>{console.error(e.message); process.exit(1);})\"",
+    "set-password": "node scripts/set-password.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "keywords": [],
   "author": "",
@@ -16,10 +18,9 @@
   "dependencies": {
     "@luna/assistant-core": "file:../../packages/assistant-core",
     "better-sqlite3": "^11.10.0",
-    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.21.2",
-    "luna-monorepo": "file:../..",
+    "helmet": "^8.3.0",
     "ollama": "^0.5.18"
   }
 }
