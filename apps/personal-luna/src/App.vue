@@ -19,8 +19,10 @@ async function logout() {
         <h1>Deine persönliche KI-Begleiterin</h1>
       </div>
       <nav class="mode-switch">
-        <RouterLink to="/" class="mode-link" active-class="active">Full</RouterLink>
-        <RouterLink to="/chat" class="mode-link" active-class="active">Chat only</RouterLink>
+        <RouterLink to="/" class="mode-link" exact-active-class="active">Cockpit</RouterLink>
+        <RouterLink to="/luna" class="mode-link" active-class="active">Luna</RouterLink>
+        <RouterLink to="/lists" class="mode-link" active-class="active">Listen</RouterLink>
+        <RouterLink to="/money" class="mode-link" active-class="active">Geld</RouterLink>
         <button type="button" class="mode-link" @click="logout">Logout</button>
       </nav>
     </header>
