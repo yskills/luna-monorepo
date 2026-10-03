@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm ci)",
+      "Bash(npm test)",
+      "Bash(npm run build)",
+      "Bash(npm run build:*)",
+      "Bash(npm audit:*)",
+      "Bash(node --test:*)",
+      "Bash(node .claude/scripts/shoot.mjs:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Write(**/.env)",
+      "Read(deploy/.env)",
+      "Edit(deploy/.env)"
+    ]
+  }
+}
