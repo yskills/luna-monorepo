@@ -13,10 +13,15 @@ npm install @luna/assistant-sdk
 ```js
 import { createAssistantSdkClient } from '@luna/assistant-sdk'
 
+// Browser: same-origin, Login per Session-Cookie
 const client = createAssistantSdkClient({
-  baseUrl: import.meta.env.VITE_ASSISTANT_API_BASE_URL,
-  apiKey: import.meta.env.VITE_ASSISTANT_API_KEY,
+  baseUrl: '/assistant',
+  onUnauthorized: () => router.push('/login'),
 })
 
+await client.login(password)
 const mode = await client.getMode('luna')
 ```
+
+Server-zu-Server (z. B. geplante Jobs) kann stattdessen `apiKey` nutzen.
+Niemals einen API-Key über `VITE_*` ins Frontend geben: alles mit `VITE_` landet öffentlich im Bundle.

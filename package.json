@@ -20,7 +20,6 @@
     "check:service": "node --check apps/assistant-service/src/server.mjs"
   },
   "dependencies": {
-    "@luna/assistant-core": "file:packages/assistant-core",
-    "luna-monorepo": "file:"
+    "@luna/assistant-core": "file:packages/assistant-core"
   }
 }
