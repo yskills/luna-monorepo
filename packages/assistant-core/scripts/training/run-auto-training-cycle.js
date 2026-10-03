@@ -1,8 +1,8 @@
 import { spawnSync } from 'child_process';
-import { resolveRuntimeConfig } from '../../src/config/runtimeConfig.js';
+import { resolveRuntimeConfig, MIN_CURATED_FOR_LORA } from '../../src/config/runtimeConfig.js';
 
 const runtime = resolveRuntimeConfig();
-const DEFAULT_MIN_CURATED = Number(process.env.TRAIN_MIN_CURATED || runtime.trainMinCurated || 20);
+const DEFAULT_MIN_CURATED = runtime.trainMinCurated;
 const projectRoot = runtime.scriptsWorkingDir;
 
 function hasFlag(argv = [], flag = '') {
@@ -24,7 +24,8 @@ function parseMinCurated(argv = []) {
   const arg = argv.find((item) => String(item || '').startsWith('--minCurated='));
   if (!arg) return DEFAULT_MIN_CURATED;
   const value = Number(String(arg).split('=')[1]);
-  return Number.isFinite(value) && value >= 1 ? value : DEFAULT_MIN_CURATED;
+  // Never below the LoRA floor, whatever the caller passes.
+  return Number.isFinite(value) ? Math.max(MIN_CURATED_FOR_LORA, value) : DEFAULT_MIN_CURATED;
 }
 
 function run(command, args = []) {

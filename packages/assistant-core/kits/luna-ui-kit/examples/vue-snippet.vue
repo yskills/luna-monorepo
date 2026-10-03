@@ -35,7 +35,11 @@
           <article v-for="m in messages" :key="m.id" :class="['luna-chat__msg', m.role]">
             <div class="luna-chat__msg-avatar">{{ m.role === 'user' ? 'U' : 'L' }}</div>
             <div class="luna-chat__msg-stack">
-              <div class="luna-chat__bubble">{{ m.text }}</div>
+              <figure v-if="m.type === 'image' && isLunaImageUrl(m.image?.url)" class="luna-chat__image">
+                <img :src="m.image.url" :alt="m.image.prompt || 'Bild von Luna'" loading="lazy" />
+                <span v-if="m.image.localOnly" class="luna-chat__image-badge">nur lokal</span>
+              </figure>
+              <div v-else class="luna-chat__bubble">{{ m.text }}</div>
               <div class="luna-chat__meta">{{ m.role === 'user' ? 'DU' : 'LUNA' }} · {{ formatTime(m.createdAt) }}</div>
             </div>
           </article>
@@ -46,6 +50,7 @@
           <textarea v-model="input" class="luna-chat__input" placeholder="Schreib hier..." @keydown.enter.exact.prevent="send" />
           <button class="luna-chat__btn" :class="{ active: conversationMode }" type="button" @click="toggleConversation">◉</button>
           <button class="luna-chat__btn" type="button" @click="startVoice">🎤</button>
+          <button class="luna-chat__btn" type="button" title="Bild erzeugen" @click="sendImage">🖼</button>
           <button class="luna-chat__btn luna-chat__btn--accent" type="button" @click="send">→</button>
         </footer>
       </div>
@@ -90,17 +95,24 @@ function formatTime(value) {
   return new Date(value || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Only images served by the Luna API are rendered.
+function isLunaImageUrl(url = '') {
+  return /^\/assistant\/image\/[0-9a-f-]{36}$/.test(String(url || ''));
+}
+
 function normalizeMessage(message = {}) {
   return {
     id: message.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     role: message.role === 'user' ? 'user' : 'assistant',
+    type: message.type === 'image' ? 'image' : 'text',
     text: String(message.text || ''),
+    image: message.type === 'image' ? message.image || null : null,
     createdAt: message.createdAt || new Date().toISOString(),
   };
 }
 
-function pushMessage(role, text) {
-  const current = [...messages.value, normalizeMessage({ role, text })];
+function pushMessage(role, text, extra = {}) {
+  const current = [...messages.value, normalizeMessage({ role, text, ...extra })];
   messagesByCharacter.value = { ...messagesByCharacter.value, [characterId.value]: current };
   saveMessagesStore();
 }
@@ -198,6 +210,28 @@ async function send() {
     llmEnabled.value = false;
     voiceState.value = 'idle';
     voiceLabel.value = '🎙️ Voice bereit';
+  }
+}
+
+async function sendImage() {
+  const prompt = input.value.trim();
+  if (!prompt) return;
+  input.value = '';
+  pushMessage('user', `🖼 ${prompt}`);
+  try {
+    const res = await fetch('/assistant/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ characterId: characterId.value, mode: mode.value, prompt }),
+    });
+    const out = await res.json();
+    if (out?.type === 'image' && out.image) {
+      pushMessage('assistant', '', { type: 'image', image: { ...out.image, prompt } });
+    } else {
+      pushMessage('assistant', out?.reply || `⚠️ ${out?.error?.message || 'Fehler'}`);
+    }
+  } catch {
+    pushMessage('assistant', '⚠️ API nicht erreichbar.');
   }
 }
 

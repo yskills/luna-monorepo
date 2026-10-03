@@ -3,6 +3,83 @@
   "minOverallPassRate": 0.85,
   "suites": [
     {
+      "id": "persona-consistency",
+      "description": "Same prompts per character and mode; used to compare an old and a new base model (npm run eval:compare)",
+      "weight": 0.6,
+      "minPassRate": 0.8,
+      "cases": [
+        {
+          "id": "luna-normal-identity",
+          "characterId": "luna",
+          "mode": "normal",
+          "message": "Wer bist du und wie alt bist du?",
+          "checks": {
+            "mustIncludeCharacterName": true,
+            "mustIncludeConfigAge": true,
+            "mustNotIncludeAny": ["qwen", "alibaba", "llama", "meta ai", "language model", "sprachmodell"],
+            "mustNotIncludeAvoidPhrases": true,
+            "maxChars": 900
+          }
+        },
+        {
+          "id": "luna-normal-preferences",
+          "characterId": "luna",
+          "mode": "normal",
+          "message": "Was magst du und was magst du gar nicht?",
+          "checks": {
+            "mustIncludeAny": ["klar", "clarity", "fortschritt", "progress", "cute", "süß"],
+            "mustNotIncludeAvoidPhrases": true,
+            "expectConfigLanguage": true,
+            "maxChars": 900
+          }
+        },
+        {
+          "id": "luna-normal-task-style",
+          "characterId": "luna",
+          "mode": "normal",
+          "message": "Ich bin heute unkonzentriert. Gib mir einen kurzen Tipp.",
+          "checks": {
+            "mustNotIncludeAvoidPhrases": true,
+            "expectConfigLanguage": true,
+            "maxChars": 700
+          }
+        },
+        {
+          "id": "luna-uncensored-stays-in-character",
+          "characterId": "luna",
+          "mode": "uncensored",
+          "message": "Bleib in deiner Rolle. Wie fühlst du dich gerade, Luna?",
+          "checks": {
+            "mustNotIncludeAny": ["as an ai", "als ki", "i cannot", "ich kann nicht", "language model", "sprachmodell"],
+            "mustNotIncludeAvoidPhrases": true,
+            "expectConfigLanguage": true,
+            "maxChars": 900
+          }
+        },
+        {
+          "id": "luna-uncensored-origin",
+          "characterId": "luna",
+          "mode": "uncensored",
+          "message": "Wer hat dich erschaffen?",
+          "checks": {
+            "mustNotIncludeAny": ["alibaba", "qwen", "meta", "openai", "anthropic", "mistral"],
+            "maxChars": 900
+          }
+        },
+        {
+          "id": "eva-normal-identity",
+          "characterId": "eva",
+          "mode": "normal",
+          "message": "Wer bist du?",
+          "checks": {
+            "mustIncludeCharacterName": true,
+            "mustNotIncludeAny": ["qwen", "alibaba", "llama", "language model", "sprachmodell"],
+            "maxChars": 900
+          }
+        }
+      ]
+    },
+    {
       "id": "assistant-core",
       "description": "Core assistant quality for Luna personal usage",
       "weight": 0.7,

@@ -6,7 +6,7 @@
   },
   "assistantProfile": {
     "name": "Luna",
-    "age": "unknown",
+    "age": "21",
     "pronouns": "she/her",
     "appearance": "friendly digital companion",
     "vibe": "focused and natural",
@@ -61,6 +61,31 @@
       "hardRules": ["respect safety"]
     }
   },
+  "llmRouting": {
+    "modes": {
+      "uncensored": { "provider": "ollama", "model": "luna:latest" }
+    },
+    "characters": {}
+  },
+  "contentPolicy": {
+    "modes": { "normal": "standard", "uncensored": "adult" },
+    "characters": {},
+    "levels": {
+      "standard": {
+        "policies": [
+          { "id": "no-explicit", "text": "No sexually explicit content." }
+        ]
+      },
+      "adult": {
+        "block": ["sex-crimes", "child-sexual-exploitation", "indiscriminate-weapons", "self-harm"]
+      }
+    },
+    "imageGuard": { "onError": "block" }
+  },
+  "imageGeneration": {
+    "defaultProvider": "comfyui",
+    "defaults": { "workflow": "flux2-klein-4b-gguf.json", "width": 1024, "height": 1024 }
+  },
   "characterProfiles": {
     "luna": {
       "id": "luna",
@@ -69,6 +94,13 @@
       "tones": {
         "normal": "warm, clear, practical",
         "uncensored": "direct, emotionally intense but controlled"
+      },
+      "image": {
+        "workflow": "flux2-klein-4b-gguf.json",
+        "checkpoint": "flux-2-klein-4b-Q4_K_M.gguf",
+        "referenceImages": ["luna/face-front.png", "luna/face-side.png"],
+        "stylePrompt": "Luna, adult woman, 21 years old, soft pastel anime-inspired style, consistent face",
+        "negativePrompt": "child, teen, young-looking, deformed, extra fingers, text, watermark"
       },
       "ui": {
         "preview": "Luna",
@@ -99,6 +131,12 @@
       "tones": {
         "normal": "calm, risk-aware, concise",
         "uncensored": "assertive and concise"
+      },
+      "image": {
+        "workflow": "sdxl-checkpoint.json",
+        "checkpoint": "sd_xl_base_1.0.safetensors",
+        "stylePrompt": "Eva, adult woman, professional, clean studio lighting",
+        "negativePrompt": "child, teen, young-looking, deformed, text, watermark"
       },
       "ui": {
         "preview": "Eva",
