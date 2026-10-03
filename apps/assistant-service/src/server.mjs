@@ -3,6 +3,7 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { CompanionLLMService, createAssistantRouter } from '@luna/assistant-core/v1'
 import { createApp } from './app.mjs'
+import { startBriefingSchedule } from './cockpit/scheduler.mjs'
 
 dotenv.config()
 
@@ -30,9 +31,11 @@ if (!process.env.ASSISTANT_MEMORY_FILE) {
 
 let app
 try {
-  ({ app } = await createApp({
+  let cockpit
+  ;({ app, cockpit } = await createApp({
     assistantRouter: createAssistantRouter({ CompanionLLMService }),
   }))
+  startBriefingSchedule({ briefing: cockpit.briefing, log: (line) => process.stdout.write(`${line}\n`) })
 } catch (error) {
   process.stderr.write(`[assistant-service] Start abgebrochen: ${error.message}\n`)
   process.exit(1)
