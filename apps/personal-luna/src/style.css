@@ -304,6 +304,20 @@ button.ghost {
   grid-column: 1 / -1;
 }
 
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat .big {
+  font-size: 1.4rem;
+}
+
+.stat .muted {
+  margin: 0;
+}
+
 .spaced {
   margin-top: 12px;
 }

@@ -11,6 +11,7 @@ import { createBriefingService } from './cockpit/briefing.mjs'
 import { createCockpitRouter } from './cockpit/routes.mjs'
 import { createSecretBox, createSecretStore } from './connectors/secretBox.mjs'
 import { createOutlookConnector } from './connectors/outlook.mjs'
+import { createTikTokConnector } from './connectors/tiktok.mjs'
 import { createConnectorRouter, createOAuthCallbackRouter } from './connectors/routes.mjs'
 
 const resolveRuntimePath = (targetPath) => {
@@ -138,11 +139,15 @@ export async function createApp({ env = process.env, log = (line) => process.std
   const cockpitStore = createCockpitStore(cockpitDb)
   const secrets = createSecretStore(cockpitDb, createSecretBox(env))
   const outlook = createOutlookConnector({ env, secrets, store: cockpitStore, log, ...(fetchImpl ? { fetchImpl } : {}) })
+  const tiktok = createTikTokConnector({ env, secrets, store: cockpitStore, log, ...(fetchImpl ? { fetchImpl } : {}) })
+  const connectors = [outlook, tiktok]
   const briefing = createBriefingService({
     store: cockpitStore,
     env,
     log,
     mail: () => (outlook.status().connected ? outlook.summary({ force: true }) : null),
+    // Refresh TikTok numbers first so the briefing's metrics are current.
+    beforeRun: () => (tiktok.status().connected ? tiktok.summary({ force: true }).catch(() => null) : null),
     ...(summarize ? { summarize } : {}),
   })
 
@@ -193,10 +198,10 @@ export async function createApp({ env = process.env, log = (line) => process.std
     app.use('/assistant', assistantRouter)
   }
 
-  app.use('/api/connectors', createOAuthCallbackRouter({ outlook, log }))
+  app.use('/api/connectors', createOAuthCallbackRouter({ connectors, log }))
   app.use('/api', csrfGuard, auth.requireAuth)
-  app.use('/api/connectors', createConnectorRouter({ outlook }))
-  app.use('/api', createCockpitRouter({ store: cockpitStore, briefing, connectors: () => [outlook.status(), { id: 'tiktok', label: 'TikTok', configured: false, connected: false }] }))
+  app.use('/api/connectors', createConnectorRouter({ connectors }))
+  app.use('/api', createCockpitRouter({ store: cockpitStore, briefing, connectors: () => connectors.map((c) => c.status()) }))
 
   app.get('/backend', auth.requireAuth, (_req, res) => {
     res.type('html').send(renderStatusPage({ nonce: res.locals.cspNonce }))
@@ -232,5 +237,5 @@ export async function createApp({ env = process.env, log = (line) => process.std
     })
   })
 
-  return { app, authConfig, cockpit: { db: cockpitDb, store: cockpitStore, briefing, outlook } }
+  return { app, authConfig, cockpit: { db: cockpitDb, store: cockpitStore, briefing, outlook, tiktok, connectors } }
 }

@@ -14,6 +14,16 @@ export function collectFacts(store, now = new Date()) {
   }
 }
 
+const METRIC_LABELS = {
+  'tiktok.followers': { de: 'TikTok-Follower', en: 'TikTok followers' },
+  'tiktok.likes': { de: 'TikTok-Likes', en: 'TikTok likes' },
+  'tiktok.videos': { de: 'TikTok-Videos', en: 'TikTok videos' },
+  'tiktok.recent_views': { de: 'TikTok-Aufrufe (letzte 10 Videos)', en: 'TikTok views (last 10 videos)' },
+}
+
+export const metricLabel = (metric, language = 'de') =>
+  METRIC_LABELS[`${metric.source}.${metric.metric}`]?.[language === 'en' ? 'en' : 'de'] || `${metric.source} ${metric.metric}`
+
 export function renderPlainSummary(facts, language = 'de') {
   const de = language !== 'en'
   const locale = de ? 'de-DE' : 'en-US'
@@ -44,8 +54,9 @@ export function renderPlainSummary(facts, language = 'de') {
 
   // Outlook's unread counter is already covered by the mail lines.
   for (const metric of facts.metrics.filter((m) => m.source !== 'outlook')) {
-    const change = metric.change24h == null ? '' : ` (${metric.change24h >= 0 ? '+' : ''}${metric.change24h} ${de ? 'in 24h' : 'in 24h'})`
-    lines.push(`${metric.source} ${metric.metric}: ${metric.value}${change}.`)
+    const change = metric.change24h == null ? '' : ` (${metric.change24h >= 0 ? '+' : ''}${new Intl.NumberFormat(locale).format(metric.change24h)} in 24h)`
+    const fmt = (n) => new Intl.NumberFormat(locale).format(n)
+    lines.push(`${metricLabel(metric, language)}: ${fmt(metric.value)}${change}.`)
   }
   return lines.join('\n')
 }
@@ -89,7 +100,7 @@ export async function summarizeWithOllama(facts, { host, model, language = 'de',
   }
 }
 
-export function createBriefingService({ store, env = process.env, summarize = summarizeWithOllama, mail = () => null, log = () => {} }) {
+export function createBriefingService({ store, env = process.env, summarize = summarizeWithOllama, mail = () => null, beforeRun = () => null, log = () => {} }) {
   const language = String(env.LUNA_LANGUAGE || 'de').toLowerCase().startsWith('en') ? 'en' : 'de'
   const host = String(env.OLLAMA_HOST || 'http://127.0.0.1:11434')
   const model = String(env.LUNA_BRIEFING_MODEL || env.LLM_MODEL || '').trim()
@@ -99,6 +110,7 @@ export function createBriefingService({ store, env = process.env, summarize = su
     // Share one run when the button and the schedule fire at the same time.
     if (running) return running
     running = (async () => {
+      await beforeRun()
       const facts = collectFacts(store)
       try {
         const mailFacts = await mail()

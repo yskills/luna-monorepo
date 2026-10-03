@@ -23,3 +23,12 @@ export function startBriefingSchedule({ briefing, env = process.env, log = () =>
   log(`[briefing] Daily briefing at ${raw} (${timezone}).`)
   return { stop: () => task.stop() }
 }
+
+// Hourly connector sync (at minute 5) so metric trends have data points.
+export function startConnectorSync({ sync, env = process.env, log = () => {}, scheduler = cron }) {
+  if (String(env.LUNA_CONNECTOR_SYNC || 'on').trim() === 'off') return { stop() {} }
+  const task = scheduler.schedule('5 * * * *', () => {
+    sync().catch((error) => log(`[sync] Failed: ${error.message}`))
+  }, { timezone: String(env.LUNA_TIMEZONE || 'Europe/Berlin'), name: 'connector-sync' })
+  return { stop: () => task.stop() }
+}

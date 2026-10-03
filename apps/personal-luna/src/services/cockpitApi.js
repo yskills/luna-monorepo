@@ -31,10 +31,10 @@ export const cockpitApi = {
   addMoney: (entry) => request('/money', { method: 'POST', body: entry }),
   deleteMoney: (id) => request(`/money/${id}`, { method: 'DELETE' }),
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
-  outlookSummary: (refresh = false) => request(`/connectors/outlook/summary${refresh ? '?refresh=1' : ''}`),
-  disconnectOutlook: () => request('/connectors/outlook/disconnect', { method: 'POST' }),
-  // OAuth needs a full-page navigation to Microsoft, not a fetch.
-  connectOutlook: () => window.location.assign('/api/connectors/outlook/start'),
+  connectorSummary: (id, refresh = false) => request(`/connectors/${id}/summary${refresh ? '?refresh=1' : ''}`),
+  disconnect: (id) => request(`/connectors/${id}/disconnect`, { method: 'POST' }),
+  // OAuth needs a full-page navigation to the provider, not a fetch.
+  connect: (id) => window.location.assign(`/api/connectors/${encodeURIComponent(id)}/start`),
 }
 
 export const formatCents = (cents, currency = 'EUR') =>
@@ -53,3 +53,14 @@ export function parseAmountToCents(input) {
   if (!Number.isSafeInteger(cents) || cents === 0) return null
   return negative ? -cents : cents
 }
+
+const METRIC_LABELS = {
+  'tiktok.followers': 'TikTok-Follower',
+  'tiktok.likes': 'TikTok-Likes',
+  'tiktok.videos': 'TikTok-Videos',
+  'tiktok.recent_views': 'Aufrufe (letzte 10 Videos)',
+}
+
+export const metricLabel = (m) => METRIC_LABELS[`${m.source}.${m.metric}`] || `${m.source} ${m.metric}`
+
+export const formatCount = (value) => new Intl.NumberFormat('de-DE').format(value)

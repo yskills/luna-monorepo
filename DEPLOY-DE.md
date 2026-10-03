@@ -65,6 +65,24 @@ Luna liest ungelesene Mails und die heutigen Termine. Sie kann nichts senden ode
 
 Die Microsoft-Tokens liegen verschlüsselt (AES-256-GCM, Schlüssel `LUNA_TOKEN_KEY`) in der SQLite-Datei. Ohne `LUNA_TOKEN_KEY` wird der Schlüssel aus dem Session-Secret abgeleitet; ändert sich das, musst du Outlook neu verbinden. Das Client-Secret läuft nach 24 Monaten ab: dann Schritt 4 und 5 wiederholen.
 
+## 6) TikTok verbinden (optional, nur lesen)
+
+Luna liest Follower, Likes, Anzahl Videos und die Aufrufe deiner letzten 10 öffentlichen Videos (Rechte: `user.info.basic`, `user.info.stats`, `video.list`). Posten kann sie damit nicht.
+
+1. https://developers.tiktok.com öffnen, mit deinem TikTok-Konto anmelden, **Manage apps → Connect an app**.
+2. Produkt **Login Kit** hinzufügen, Plattform **Web**, Redirect URI: `https://<deine-domain>/api/connectors/tiktok/callback`.
+3. Scopes `user.info.basic`, `user.info.stats`, `video.list` hinzufügen.
+4. Oben auf **Sandbox** umschalten und unter **Target users** dein eigenes TikTok-Konto eintragen. Für dich allein reicht die Sandbox, eine App-Prüfung durch TikTok ist nicht nötig.
+5. **Client key** und **Client secret** kopieren und in `deploy/.env` eintragen:
+   ```
+   TIKTOK_CLIENT_KEY=<client key>
+   TIKTOK_CLIENT_SECRET=<client secret>
+   TIKTOK_REDIRECT_URI=https://<deine-domain>/api/connectors/tiktok/callback
+   ```
+6. `docker compose up -d luna`, dann im Cockpit bei TikTok auf **Verbinden** tippen.
+
+Luna holt die Zahlen stündlich, damit das Cockpit die Veränderung in 24 Stunden zeigen kann (`LUNA_CONNECTOR_SYNC=off` schaltet das ab).
+
 ## Passwort ändern / alle Geräte abmelden
 
 Schritt 3 wiederholen, Werte ersetzen, dann `docker compose up -d luna`.
