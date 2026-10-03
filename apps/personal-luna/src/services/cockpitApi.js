@@ -31,6 +31,10 @@ export const cockpitApi = {
   addMoney: (entry) => request('/money', { method: 'POST', body: entry }),
   deleteMoney: (id) => request(`/money/${id}`, { method: 'DELETE' }),
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
+  outlookSummary: (refresh = false) => request(`/connectors/outlook/summary${refresh ? '?refresh=1' : ''}`),
+  disconnectOutlook: () => request('/connectors/outlook/disconnect', { method: 'POST' }),
+  // OAuth needs a full-page navigation to Microsoft, not a fetch.
+  connectOutlook: () => window.location.assign('/api/connectors/outlook/start'),
 }
 
 export const formatCents = (cents, currency = 'EUR') =>

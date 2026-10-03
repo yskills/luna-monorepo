@@ -45,6 +45,12 @@ const MIGRATIONS = [
     summary TEXT NOT NULL,
     summary_source TEXT NOT NULL
   );`,
+  // Connector credentials, encrypted with AES-256-GCM before they reach this table.
+  `CREATE TABLE connector_secrets (
+    provider TEXT PRIMARY KEY,
+    ciphertext TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
 ]
 
 export function openCockpitDb(filePath) {
