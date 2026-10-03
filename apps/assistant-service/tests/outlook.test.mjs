@@ -24,12 +24,15 @@ function fakeMicrosoft() {
       const params = new URLSearchParams(init.body)
       if (params.get('grant_type') === 'refresh_token' && refreshError) return json({ error: refreshError }, 400)
       tokenCounter += 1
-      return json({ access_token: `access-${tokenCounter}`, refresh_token: `refresh-${tokenCounter}`, expires_in: 3600 })
+      return json({ access_token: `access-${tokenCounter}`, refresh_token: `refresh-${tokenCounter}`, expires_in: 3600, scope: 'User.Read Mail.Read Mail.Send Calendars.Read' })
     }
     if (String(url).includes('/me?')) return json({ mail: 'me@outlook.com' })
     if (String(url).includes('/mailFolders/inbox?')) return json({ unreadItemCount: 7 })
     if (String(url).includes('/messages?')) {
-      return json({ value: [{ subject: 'Rechnung   Oktober', from: { emailAddress: { name: 'Bank' } }, receivedDateTime: '2026-10-03T05:00:00Z', importance: 'high' }] })
+      return json({ value: [{ id: 'msg-1', subject: 'Rechnung   Oktober', from: { emailAddress: { name: 'Bank', address: 'bank@example.com' } }, receivedDateTime: '2026-10-03T05:00:00Z', importance: 'high', bodyPreview: 'Ihre Rechnung ist da.' }] })
+    }
+    if (String(url).endsWith('/me/sendMail') || String(url).includes('/reply')) {
+      return { ok: true, status: 202, json: async () => { throw new Error('no body') } }
     }
     if (String(url).includes('/calendarView?')) {
       return json({ value: [{ subject: 'Zahnarzt', start: { dateTime: '2026-10-03T10:00:00.0000000' }, end: { dateTime: '2026-10-03T11:00:00.0000000' }, isAllDay: false }] })
@@ -63,7 +66,7 @@ test('secret box: round trip, tamper detection, wrong key', () => {
 
 test('outlook: not configured means no connect', () => {
   const { outlook } = setup({ LUNA_SESSION_SECRET: 's'.repeat(48) })
-  assert.deepEqual(outlook.status(), { id: 'outlook', label: 'Outlook', configured: false, connected: false, account: null })
+  assert.deepEqual(outlook.status(), { id: 'outlook', label: 'Outlook', configured: false, connected: false, account: null, canSend: false })
   assert.throws(() => outlook.beginAuth(), /not configured/)
 })
 
@@ -73,7 +76,8 @@ test('outlook: PKCE auth flow stores encrypted tokens and rejects reused state',
   assert.equal(url.origin + url.pathname, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize')
   assert.equal(url.searchParams.get('code_challenge_method'), 'S256')
   assert.match(url.searchParams.get('scope'), /Mail\.Read/)
-  assert.doesNotMatch(url.searchParams.get('scope'), /Send|ReadWrite/)
+  // Sending is limited to Mail.Send (used only by approved queue items); no write access to mailbox or calendar.
+  assert.doesNotMatch(url.searchParams.get('scope'), /ReadWrite|Mail\.Send\.Shared/)
   const state = url.searchParams.get('state')
 
   await assert.rejects(() => outlook.completeAuth({ code: 'c', state: 'forged' }), /expired or invalid/)
@@ -82,7 +86,7 @@ test('outlook: PKCE auth flow stores encrypted tokens and rejects reused state',
   assert.equal(tokenCall.get('code'), 'the-code')
   assert.ok(tokenCall.get('code_verifier').length >= 43)
 
-  assert.deepEqual(outlook.status(), { id: 'outlook', label: 'Outlook', configured: true, connected: true, account: 'me@outlook.com' })
+  assert.deepEqual(outlook.status(), { id: 'outlook', label: 'Outlook', configured: true, connected: true, account: 'me@outlook.com', canSend: true })
   const raw = db.prepare('SELECT ciphertext FROM connector_secrets').get().ciphertext
   assert.equal(raw.includes('refresh-1'), false)
   await assert.rejects(() => outlook.completeAuth({ code: 'again', state }), /expired or invalid/)
@@ -95,7 +99,10 @@ test('outlook: summary, caching, token refresh and revoked consent', async () =>
 
   const summary = await outlook.summary()
   assert.equal(summary.unreadCount, 7)
-  assert.deepEqual(summary.unread[0], { subject: 'Rechnung Oktober', from: 'Bank', receivedAt: '2026-10-03T05:00:00Z', important: true })
+  assert.deepEqual(summary.unread[0], {
+    id: 'msg-1', fromAddress: 'bank@example.com', subject: 'Rechnung Oktober', from: 'Bank',
+    receivedAt: '2026-10-03T05:00:00Z', important: true, preview: 'Ihre Rechnung ist da.',
+  })
   assert.equal(summary.events[0].subject, 'Zahnarzt')
   assert.equal(store.metricsWithChange()[0].value, 7)
   const calendarCall = ms.calls.find((c) => c.url.includes('/calendarView?'))

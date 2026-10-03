@@ -23,6 +23,7 @@ async function logout() {
         <RouterLink to="/luna" class="mode-link" active-class="active">Luna</RouterLink>
         <RouterLink to="/lists" class="mode-link" active-class="active">Listen</RouterLink>
         <RouterLink to="/money" class="mode-link" active-class="active">Geld</RouterLink>
+        <RouterLink to="/actions" class="mode-link" active-class="active">Freigaben</RouterLink>
         <button type="button" class="mode-link" @click="logout">Logout</button>
       </nav>
     </header>

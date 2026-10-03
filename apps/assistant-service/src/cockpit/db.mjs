@@ -51,6 +51,21 @@ const MIGRATIONS = [
     ciphertext TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );`,
+  // Outward actions (mails, posts). Nothing leaves the device without an explicit approval.
+  `CREATE TABLE outbound_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    origin_level TEXT NOT NULL DEFAULT 'standard',
+    source TEXT NOT NULL DEFAULT 'manual',
+    error TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    decided_at TEXT,
+    sent_at TEXT
+  );
+  CREATE INDEX idx_outbound_status ON outbound_actions(status, id);`,
 ]
 
 export function openCockpitDb(filePath) {

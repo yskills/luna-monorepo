@@ -5,6 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ListsView from '../views/ListsView.vue'
 import MoneyView from '../views/MoneyView.vue'
+import ActionsView from '../views/ActionsView.vue'
 import { useAuthStore } from '../stores/authStore'
 
 const router = createRouter({
@@ -15,6 +16,7 @@ const router = createRouter({
     { path: '/luna', name: 'full', component: FullAssistantView },
     { path: '/lists', name: 'lists', component: ListsView },
     { path: '/money', name: 'money', component: MoneyView },
+    { path: '/actions', name: 'actions', component: ActionsView },
     { path: '/chat', name: 'chat-only', component: ChatOnlyView },
   ],
 })

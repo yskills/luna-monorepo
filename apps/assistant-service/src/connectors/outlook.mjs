@@ -1,8 +1,9 @@
 import crypto from 'node:crypto'
 
-// Outlook (Microsoft Graph), read-only: unread mail and today's calendar.
+// Outlook (Microsoft Graph): unread mail and today's calendar, and sending mails that the
+// owner approved in the action queue (src/actions/queue.mjs is the only caller of sendMail).
 // OAuth 2.0 authorization code flow with PKCE; tokens are stored encrypted (see secretBox.mjs).
-const SCOPES = ['offline_access', 'User.Read', 'Mail.Read', 'Calendars.Read']
+const SCOPES = ['offline_access', 'User.Read', 'Mail.Read', 'Mail.Send', 'Calendars.Read']
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const PROVIDER = 'outlook'
 const PENDING_TTL_MS = 10 * 60 * 1000
@@ -70,20 +71,38 @@ export function createOutlookConnector({ env = process.env, secrets, store, fetc
       // Microsoft rotates refresh tokens: always keep the newest one.
       refreshToken: data.refresh_token || params.refresh_token,
       expiresAt: now().getTime() + Number(data.expires_in || 3600) * 1000,
+      // Keep the granted scopes from the first grant if a refresh does not repeat them.
+      ...(data.scope ? { scope: String(data.scope) } : {}),
     }
   }
 
-  async function graph(path, accessToken, headers = {}) {
+  async function graph(path, accessToken, headers = {}, { method = 'GET', body } = {}) {
     const response = await fetchImpl(`${GRAPH}${path}`, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json', ...headers },
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body: body ? JSON.stringify(body) : undefined,
     })
     if (!response.ok) {
       const error = new Error(`Microsoft Graph HTTP ${response.status}`)
       error.status = 502
       throw error
     }
-    return response.json()
+    // sendMail and reply answer 202 without a body.
+    return response.status === 202 || response.status === 204 ? {} : response.json()
   }
+
+  // Scopes may come back short ("Mail.Send") or fully qualified ("https://graph.microsoft.com/Mail.Send").
+  const canSend = (saved) => String(saved?.scope || '').split(/\s+/).some((s) => /(^|\/)Mail\.Send$/i.test(s))
+
+  // Graph renders a reply "comment" as HTML: escape it so the recipient sees exactly the approved text.
+  const textToHtml = (text) => String(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    .replace(/\r?\n/g, '<br>')
 
   async function accessToken() {
     const saved = secrets.read(PROVIDER)
@@ -115,7 +134,29 @@ export function createOutlookConnector({ env = process.env, secrets, store, fetc
         configured: config.configured,
         connected: !!saved?.refreshToken,
         account: saved?.account || null,
+        // Connections made before sending existed lack Mail.Send: reconnect once to enable it.
+        canSend: canSend(saved),
       }
+    },
+
+    // Only called by the action queue after the owner approved the mail.
+    async sendMail({ to, subject, body, replyToMessageId }) {
+      const saved = secrets.read(PROVIDER)
+      if (!canSend(saved)) throw Object.assign(new Error('Outlook needs to be reconnected to allow sending.'), { status: 409 })
+      const token = await accessToken()
+      const recipients = to.map((address) => ({ emailAddress: { address } }))
+      if (replyToMessageId) {
+        await graph(`/me/messages/${encodeURIComponent(replyToMessageId)}/reply`, token, {}, {
+          method: 'POST',
+          body: { message: { toRecipients: recipients }, comment: textToHtml(body) },
+        })
+      } else {
+        await graph('/me/sendMail', token, {}, {
+          method: 'POST',
+          body: { message: { subject, body: { contentType: 'Text', content: body }, toRecipients: recipients }, saveToSentItems: true },
+        })
+      }
+      cache = null
     },
 
     beginAuth() {
@@ -178,17 +219,20 @@ export function createOutlookConnector({ env = process.env, secrets, store, fetc
 
       const [inbox, unread, events] = await Promise.all([
         graph('/me/mailFolders/inbox?$select=unreadItemCount', token),
-        graph('/me/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=5&$select=subject,from,receivedDateTime,importance', token),
+        graph('/me/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=5&$select=id,subject,from,receivedDateTime,importance,bodyPreview', token),
         graph(`/me/calendarView?startDateTime=${encodeURIComponent(dayStart.toISOString())}&endDateTime=${encodeURIComponent(dayEnd.toISOString())}&$select=subject,start,end,location,isAllDay&$orderby=start/dateTime&$top=10`, token, tzHeader),
       ])
 
       const value = {
         unreadCount: Number(inbox.unreadItemCount || 0),
         unread: (unread.value || []).map((m) => ({
+          id: String(m.id || ''),
+          fromAddress: String(m.from?.emailAddress?.address || '').slice(0, 254),
           subject: clip(m.subject || '(ohne Betreff)'),
           from: clip(m.from?.emailAddress?.name || m.from?.emailAddress?.address || '', 80),
           receivedAt: m.receivedDateTime,
           important: m.importance === 'high',
+          preview: clip(m.bodyPreview || '', 400),
         })),
         events: (events.value || []).map((e) => ({
           subject: clip(e.subject || '(ohne Titel)'),

@@ -45,7 +45,9 @@ Danach `https://<deine-domain>` öffnen und einloggen. Status nach Login: `https
 
 ## 5) Outlook verbinden (optional, nur lesen)
 
-Luna liest ungelesene Mails und die heutigen Termine. Sie kann nichts senden oder löschen (Rechte: `Mail.Read`, `Calendars.Read`).
+Luna liest ungelesene Mails und die heutigen Termine (Rechte: `Mail.Read`, `Calendars.Read`). Mit `Mail.Send` kann sie Antwort-Entwürfe senden, aber nur nachdem du sie unter „Freigaben“ einzeln freigegeben hast. Löschen oder Postfach ändern kann sie nicht.
+
+Warst du schon vor dem Senden-Update verbunden, tippe im Cockpit einmal auf „Neu verbinden“, damit Microsoft das Senden-Recht abfragt.
 
 1. https://entra.microsoft.com öffnen, mit deinem Microsoft-Konto anmelden.
 2. **App registrations → New registration**
