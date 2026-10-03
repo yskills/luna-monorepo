@@ -22,24 +22,30 @@ class BlockLog {
       this.memory.push(entry);
       return entry;
     }
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    fs.appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+    try {
+      fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+      fs.appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+    } catch {
+      // A read-only disk must never turn a block into a crash; keep it in memory instead.
+      this.memory.push(entry);
+    }
     return entry;
   }
 
   readRecent(limit = 50) {
     const max = Math.max(1, Math.min(this.maxReadLines, Number(limit) || 50));
-    if (!this.filePath) return this.memory.slice(-max).reverse();
-    if (!fs.existsSync(this.filePath)) return [];
-    return fs.readFileSync(this.filePath, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .slice(-max)
-      .map((line) => {
-        try { return JSON.parse(line); } catch { return null; }
-      })
-      .filter(Boolean)
-      .reverse();
+    let fromFile = [];
+    if (this.filePath && fs.existsSync(this.filePath)) {
+      fromFile = fs.readFileSync(this.filePath, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .slice(-max)
+        .map((line) => {
+          try { return JSON.parse(line); } catch { return null; }
+        })
+        .filter(Boolean);
+    }
+    return [...fromFile, ...this.memory].slice(-max).reverse();
   }
 }
 

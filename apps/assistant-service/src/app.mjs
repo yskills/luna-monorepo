@@ -5,6 +5,10 @@ import express from 'express'
 import helmet from 'helmet'
 import { createAuth, csrfGuard, resolveAuthConfig } from './security/auth.mjs'
 import { renderStatusPage } from './statusPage.mjs'
+import { openCockpitDb } from './cockpit/db.mjs'
+import { createCockpitStore } from './cockpit/store.mjs'
+import { createBriefingService } from './cockpit/briefing.mjs'
+import { createCockpitRouter } from './cockpit/routes.mjs'
 
 const resolveRuntimePath = (targetPath) => {
   const normalized = String(targetPath || '').trim()
@@ -119,10 +123,17 @@ function buildDeployDiagnostics({ authConfig }) {
 }
 
 // Baut die komplette Express-App. Getrennt von server.mjs, damit Tests sie ohne Port starten können.
-export async function createApp({ env = process.env, log = (line) => process.stdout.write(`${line}\n`), assistantRouter } = {}) {
+export async function createApp({ env = process.env, log = (line) => process.stdout.write(`${line}\n`), assistantRouter, summarize } = {}) {
   const authConfig = await resolveAuthConfig(env, { log })
   const auth = createAuth(authConfig)
   const webDist = resolveWebDist(env)
+
+  // Cockpit data (lists, money, metrics, briefings) lives in its own SQLite file.
+  const cockpitDb = openCockpitDb(env.LUNA_DB_FILE === ':memory:'
+    ? ':memory:'
+    : resolveRuntimePath(env.LUNA_DB_FILE || './data/luna.sqlite'))
+  const cockpitStore = createCockpitStore(cockpitDb)
+  const briefing = createBriefingService({ store: cockpitStore, env, log, ...(summarize ? { summarize } : {}) })
 
   const app = express()
   app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY))
@@ -171,6 +182,8 @@ export async function createApp({ env = process.env, log = (line) => process.std
     app.use('/assistant', assistantRouter)
   }
 
+  app.use('/api', csrfGuard, auth.requireAuth, createCockpitRouter({ store: cockpitStore, briefing }))
+
   app.get('/backend', auth.requireAuth, (_req, res) => {
     res.type('html').send(renderStatusPage({ nonce: res.locals.cspNonce }))
   })
@@ -184,7 +197,7 @@ export async function createApp({ env = process.env, log = (line) => process.std
   // Die Web-App selbst ist öffentlich ladbar (enthält keine Secrets); alle Daten kommen nur nach Login.
   if (webDist) {
     app.use(express.static(webDist, { index: false, maxAge: '1h' }))
-    app.get(/^\/(?!assistant|auth|backend|health).*/, (_req, res) => {
+    app.get(/^\/(?!api|assistant|auth|backend|health).*/, (_req, res) => {
       res.setHeader('Cache-Control', 'no-cache')
       res.sendFile(path.join(webDist, 'index.html'))
     })
@@ -205,5 +218,5 @@ export async function createApp({ env = process.env, log = (line) => process.std
     })
   })
 
-  return { app, authConfig }
+  return { app, authConfig, cockpit: { db: cockpitDb, store: cockpitStore, briefing } }
 }

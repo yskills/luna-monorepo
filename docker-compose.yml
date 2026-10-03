@@ -12,6 +12,7 @@ services:
       OLLAMA_HOST: http://ollama:11434
       # Caddy ist der einzige Proxy davor
       TRUST_PROXY: "1"
+      LUNA_DB_FILE: /data/luna.sqlite
     volumes:
       - luna-data:/data
     # Nur lokal am Server erreichbar; nach außen geht es ausschließlich über Caddy (HTTPS).

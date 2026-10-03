@@ -23,6 +23,7 @@ async function startApp(envOverrides = {}) {
       LUNA_ADMIN_PASSWORD_HASH: passwordHash,
       LUNA_SESSION_SECRET: 'x'.repeat(48),
       LUNA_WEB_DIST: '/nonexistent',
+      LUNA_DB_FILE: ':memory:',
       ...envOverrides,
     },
     log: () => {},
