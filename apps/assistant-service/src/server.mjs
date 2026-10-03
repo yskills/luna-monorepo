@@ -3,7 +3,8 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { CompanionLLMService, createAssistantRouter } from '@luna/assistant-core/v1'
 import { createApp } from './app.mjs'
-import { startBriefingSchedule } from './cockpit/scheduler.mjs'
+import { startBriefingSchedule, startConnectorSync } from './cockpit/scheduler.mjs'
+import { syncConnectors } from './connectors/routes.mjs'
 
 dotenv.config()
 
@@ -35,7 +36,9 @@ try {
   ;({ app, cockpit } = await createApp({
     assistantRouter: createAssistantRouter({ CompanionLLMService }),
   }))
-  startBriefingSchedule({ briefing: cockpit.briefing, log: (line) => process.stdout.write(`${line}\n`) })
+  const logLine = (line) => process.stdout.write(`${line}\n`)
+  startBriefingSchedule({ briefing: cockpit.briefing, log: logLine })
+  startConnectorSync({ sync: () => syncConnectors(cockpit.connectors, logLine), log: logLine })
 } catch (error) {
   process.stderr.write(`[assistant-service] Start abgebrochen: ${error.message}\n`)
   process.exit(1)

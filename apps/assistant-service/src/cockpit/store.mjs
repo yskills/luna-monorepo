@@ -39,12 +39,14 @@ export function createCockpitStore(db) {
       FROM money_entries WHERE substr(booked_on, 1, 7) = ? GROUP BY currency`),
 
     insertMetric: db.prepare('INSERT INTO metrics (source, metric, value, captured_at) VALUES (?, ?, ?, ?)'),
+    // Newest row per metric; ties on the timestamp go to the later insert.
     latestMetrics: db.prepare(`
-      SELECT m.source, m.metric, m.value, m.captured_at AS capturedAt
-      FROM metrics m
-      JOIN (SELECT source, metric, MAX(captured_at) AS latest FROM metrics GROUP BY source, metric) x
-        ON x.source = m.source AND x.metric = m.metric AND x.latest = m.captured_at
-      ORDER BY m.source, m.metric`),
+      SELECT source, metric, value, capturedAt FROM (
+        SELECT source, metric, value, captured_at AS capturedAt,
+          ROW_NUMBER() OVER (PARTITION BY source, metric ORDER BY captured_at DESC, id DESC) AS rn
+        FROM metrics
+      ) WHERE rn = 1
+      ORDER BY source, metric`),
     metricBefore: db.prepare(`
       SELECT value, captured_at AS capturedAt FROM metrics
       WHERE source = ? AND metric = ? AND captured_at <= ?

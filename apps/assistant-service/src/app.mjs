@@ -9,6 +9,10 @@ import { openCockpitDb } from './cockpit/db.mjs'
 import { createCockpitStore } from './cockpit/store.mjs'
 import { createBriefingService } from './cockpit/briefing.mjs'
 import { createCockpitRouter } from './cockpit/routes.mjs'
+import { createSecretBox, createSecretStore } from './connectors/secretBox.mjs'
+import { createOutlookConnector } from './connectors/outlook.mjs'
+import { createTikTokConnector } from './connectors/tiktok.mjs'
+import { createConnectorRouter, createOAuthCallbackRouter } from './connectors/routes.mjs'
 
 const resolveRuntimePath = (targetPath) => {
   const normalized = String(targetPath || '').trim()
@@ -123,7 +127,7 @@ function buildDeployDiagnostics({ authConfig }) {
 }
 
 // Baut die komplette Express-App. Getrennt von server.mjs, damit Tests sie ohne Port starten können.
-export async function createApp({ env = process.env, log = (line) => process.stdout.write(`${line}\n`), assistantRouter, summarize } = {}) {
+export async function createApp({ env = process.env, log = (line) => process.stdout.write(`${line}\n`), assistantRouter, summarize, fetchImpl } = {}) {
   const authConfig = await resolveAuthConfig(env, { log })
   const auth = createAuth(authConfig)
   const webDist = resolveWebDist(env)
@@ -133,7 +137,19 @@ export async function createApp({ env = process.env, log = (line) => process.std
     ? ':memory:'
     : resolveRuntimePath(env.LUNA_DB_FILE || './data/luna.sqlite'))
   const cockpitStore = createCockpitStore(cockpitDb)
-  const briefing = createBriefingService({ store: cockpitStore, env, log, ...(summarize ? { summarize } : {}) })
+  const secrets = createSecretStore(cockpitDb, createSecretBox(env))
+  const outlook = createOutlookConnector({ env, secrets, store: cockpitStore, log, ...(fetchImpl ? { fetchImpl } : {}) })
+  const tiktok = createTikTokConnector({ env, secrets, store: cockpitStore, log, ...(fetchImpl ? { fetchImpl } : {}) })
+  const connectors = [outlook, tiktok]
+  const briefing = createBriefingService({
+    store: cockpitStore,
+    env,
+    log,
+    mail: () => (outlook.status().connected ? outlook.summary({ force: true }) : null),
+    // Refresh TikTok numbers first so the briefing's metrics are current.
+    beforeRun: () => (tiktok.status().connected ? tiktok.summary({ force: true }).catch(() => null) : null),
+    ...(summarize ? { summarize } : {}),
+  })
 
   const app = express()
   app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY))
@@ -182,7 +198,10 @@ export async function createApp({ env = process.env, log = (line) => process.std
     app.use('/assistant', assistantRouter)
   }
 
-  app.use('/api', csrfGuard, auth.requireAuth, createCockpitRouter({ store: cockpitStore, briefing }))
+  app.use('/api/connectors', createOAuthCallbackRouter({ connectors, log }))
+  app.use('/api', csrfGuard, auth.requireAuth)
+  app.use('/api/connectors', createConnectorRouter({ connectors }))
+  app.use('/api', createCockpitRouter({ store: cockpitStore, briefing, connectors: () => connectors.map((c) => c.status()) }))
 
   app.get('/backend', auth.requireAuth, (_req, res) => {
     res.type('html').send(renderStatusPage({ nonce: res.locals.cspNonce }))
@@ -218,5 +237,5 @@ export async function createApp({ env = process.env, log = (line) => process.std
     })
   })
 
-  return { app, authConfig, cockpit: { db: cockpitDb, store: cockpitStore, briefing } }
+  return { app, authConfig, cockpit: { db: cockpitDb, store: cockpitStore, briefing, outlook, tiktok, connectors } }
 }

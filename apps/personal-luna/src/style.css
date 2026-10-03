@@ -300,6 +300,36 @@ button.ghost {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.wide-tile {
+  grid-column: 1 / -1;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat .big {
+  font-size: 1.4rem;
+}
+
+.stat .muted {
+  margin: 0;
+}
+
+.spaced {
+  margin-top: 12px;
+}
+
+.connector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
 button.small {
   padding: 4px 8px;
 }

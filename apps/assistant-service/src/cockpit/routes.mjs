@@ -32,7 +32,7 @@ const notFound = () => Object.assign(new Error('Not found.'), { status: 404 })
 // Express 4 does not catch promise rejections: forward them to the central error handler.
 const handle = (fn) => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next)
 
-export function createCockpitRouter({ store, briefing }) {
+export function createCockpitRouter({ store, briefing, connectors = () => [] }) {
   const router = express.Router()
 
   router.get('/dashboard', handle((_req, res) => {
@@ -42,10 +42,7 @@ export function createCockpitRouter({ store, briefing }) {
       openTodos: store.openItemsTotal(),
       metrics: store.metricsWithChange(),
       briefing: store.latestBriefing(),
-      connectors: [
-        { id: 'outlook', label: 'Outlook', connected: false },
-        { id: 'tiktok', label: 'TikTok', connected: false },
-      ],
+      connectors: connectors(),
     })
   }))
 
