@@ -6,7 +6,7 @@ So bindest du `@luna/assistant-core` in ein externes Projekt ein und nutzt dense
 
 ```bash
 npm install express better-sqlite3 ollama
-npm install github:yskills/aissistant#v0.1.7
+npm install github:yverse-studio/aissistant#v0.1.7
 mkdir -p config
 cp node_modules/@luna/assistant-core/config/assistant-mode-config.example.json config/assistant-mode-config.local.json
 cp node_modules/@luna/assistant-core/config/luna-presets.example.json config/luna-presets.local.json
@@ -36,7 +36,7 @@ npm install express better-sqlite3 ollama
 Über GitHub-Tag installieren (Standard):
 
 ```bash
-npm install github:yskills/aissistant#v0.1.4
+npm install github:yverse-studio/aissistant#v0.1.4
 ```
 
 ## 1.1) Empfohlener Ablauf im Consumer-Projekt

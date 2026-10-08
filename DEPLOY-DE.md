@@ -17,7 +17,7 @@ z. B. `meine-luna.duckdns.org`. In der Server-Firewall Ports 80 und 443 öffnen.
 ```bash
 # Docker installieren (Ubuntu)
 curl -fsSL https://get.docker.com | sh
-git clone https://github.com/yskills/luna-monorepo.git
+git clone https://github.com/yverse-studio/luna-monorepo.git
 cd luna-monorepo
 cp deploy/.env.example deploy/.env
 ```
