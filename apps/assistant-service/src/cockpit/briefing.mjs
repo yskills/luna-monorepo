@@ -114,7 +114,12 @@ export function createBriefingService({ store, env = process.env, summarize = su
       const facts = collectFacts(store)
       try {
         const mailFacts = await mail()
-        if (mailFacts) facts.mail = { unreadCount: mailFacts.unreadCount, unread: mailFacts.unread, events: mailFacts.events }
+        if (mailFacts) facts.mail = {
+          unreadCount: mailFacts.unreadCount,
+          // Only what the summary needs: no message ids or body previews go to the model.
+          unread: mailFacts.unread.map(({ subject, from, receivedAt, important }) => ({ subject, from, receivedAt, important })),
+          events: mailFacts.events,
+        }
       } catch (error) {
         log(`[briefing] Mail unavailable: ${error.message}`)
       }

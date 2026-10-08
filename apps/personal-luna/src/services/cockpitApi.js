@@ -31,6 +31,12 @@ export const cockpitApi = {
   addMoney: (entry) => request('/money', { method: 'POST', body: entry }),
   deleteMoney: (id) => request(`/money/${id}`, { method: 'DELETE' }),
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
+  actions: (status) => request(`/actions${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  createAction: (input) => request('/actions', { method: 'POST', body: input }),
+  editAction: (id, payload) => request(`/actions/${id}`, { method: 'PATCH', body: { payload } }),
+  approveAction: (id) => request(`/actions/${id}/approve`, { method: 'POST' }),
+  rejectAction: (id) => request(`/actions/${id}/reject`, { method: 'POST' }),
+  draftMailReply: (messageId, instructions) => request('/actions/drafts/mail-reply', { method: 'POST', body: { messageId, instructions } }),
   connectorSummary: (id, refresh = false) => request(`/connectors/${id}/summary${refresh ? '?refresh=1' : ''}`),
   disconnect: (id) => request(`/connectors/${id}/disconnect`, { method: 'POST' }),
   // OAuth needs a full-page navigation to the provider, not a fetch.

@@ -1,11 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { cockpitApi, formatCents, formatCount, metricLabel } from '../services/cockpitApi'
 
 const data = ref(null)
 const error = ref('')
 const running = ref(false)
-import { cockpitApi, formatCents, formatCount, metricLabel } from '../services/cockpitApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -64,6 +64,27 @@ async function disconnect(connector) {
 
 // Outlook and TikTok have their own tiles; the generic list is for other sources.
 const metrics = computed(() => (data.value?.metrics || []).filter((m) => !['outlook', 'tiktok'].includes(m.source)))
+
+// Luna drafts a reply into the approval queue; nothing is sent from here.
+const drafting = ref('')
+const replyFor = ref('')
+const replyNotes = ref('')
+function toggleReply(m) {
+  replyFor.value = replyFor.value === m.id ? '' : m.id
+  replyNotes.value = ''
+}
+async function draftReply(m) {
+  drafting.value = m.id
+  error.value = ''
+  try {
+    await cockpitApi.draftMailReply(m.id, replyNotes.value)
+    router.push({ name: 'actions' })
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    drafting.value = ''
+  }
+}
 
 const timeOf = (iso) => String(iso || '').slice(11, 16)
 
@@ -125,7 +146,15 @@ onMounted(() => {
     </section>
 
     <div v-if="data" class="tiles">
+      <RouterLink v-if="data.pendingActions" to="/actions" class="surface panel tile wide-tile">
+        <h3>Wartet auf deine Freigabe</h3>
+        <p class="big">{{ data.pendingActions }}</p>
+      </RouterLink>
       <section v-if="outlook?.connected" class="surface panel tile wide-tile">
+        <p v-if="!outlook.canSend" class="muted">
+          Für Antwort-Entwürfe Outlook einmal neu verbinden (Senden-Recht fehlt).
+          <button type="button" class="ghost small" @click="cockpitApi.connect('outlook')">Neu verbinden</button>
+        </p>
         <div class="card-head">
           <h3>Mail · {{ outlook.account }}</h3>
           <button type="button" class="ghost small" @click="loadMail(true)">↻</button>
@@ -134,9 +163,26 @@ onMounted(() => {
         <template v-if="mail">
           <p class="big">{{ mail.unreadCount }} <span class="muted">ungelesen</span></p>
           <ul class="plain-list items">
-            <li v-for="m in mail.unread" :key="m.receivedAt + m.subject">
-              <span><strong v-if="m.important" class="neg">! </strong>{{ m.subject }}</span>
-              <span class="muted">{{ m.from }}</span>
+            <li v-for="m in mail.unread" :key="m.id" class="mail-row" :class="{ open: replyFor === m.id }">
+              <button
+                type="button"
+                class="mail-line"
+                :aria-expanded="replyFor === m.id"
+                :disabled="!outlook.canSend"
+                @click="toggleReply(m)"
+              >
+                <span class="mail-subject"><strong v-if="m.important" class="neg">! </strong>{{ m.subject }}</span>
+                <span class="muted">{{ m.from }}</span>
+              </button>
+              <form v-if="replyFor === m.id" class="reply-form" @submit.prevent="draftReply(m)">
+                <label class="field-label">Was soll Luna antworten?
+                  <input v-model="replyNotes" class="field" maxlength="1000" placeholder="z. B. zusagen, 15 Uhr" />
+                </label>
+                <div class="button-row">
+                  <button type="submit" :disabled="!!drafting">{{ drafting === m.id ? 'Luna schreibt …' : 'Entwurf erstellen' }}</button>
+                  <button type="button" class="text-button" @click="toggleReply(m)">Abbrechen</button>
+                </div>
+              </form>
             </li>
           </ul>
           <h3 class="spaced">Heute</h3>

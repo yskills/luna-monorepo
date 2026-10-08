@@ -318,6 +318,181 @@ button.ghost {
   margin: 0;
 }
 
+.items li.mail-row {
+  display: block;
+  padding: 0;
+}
+
+.mail-line {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.mail-line:disabled {
+  cursor: default;
+}
+
+.mail-line:focus-visible,
+.text-button:focus-visible {
+  outline: 2px solid #9e7bff;
+  outline-offset: 2px;
+}
+
+.mail-subject {
+  flex: 1 1 60%;
+}
+
+.reply-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mail-row.open + .mail-row,
+.items + .spaced {
+  margin-top: 0;
+}
+
+h3.spaced {
+  margin-top: 24px;
+}
+
+.narrow {
+  max-width: 720px;
+}
+
+.page-head h2 {
+  margin: 0 0 4px;
+}
+
+.page-head p {
+  margin: 0;
+}
+
+.action-card {
+  display: grid;
+  gap: 12px;
+}
+
+.action-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(255, 196, 92, 0.16);
+  color: #ffd48a;
+}
+
+.status-failed,
+.status-blocked {
+  background: rgba(255, 159, 159, 0.16);
+  color: #ffc1c1;
+}
+
+.action-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.action-fields dt {
+  color: #b6beff;
+}
+
+.action-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.action-body {
+  margin: 0;
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-width: 65ch;
+}
+
+.field-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.86rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.text-button {
+  background: transparent;
+  color: #d9ddff;
+  font-weight: 500;
+  min-height: 44px;
+}
+
+button.text-button.danger {
+  color: #ff9f9f;
+}
+
+.done-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.done-list li:last-child {
+  border-bottom: 0;
+}
+
+.nums {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .button-stack {
+    flex-direction: column;
+  }
+
+  .button-stack button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .button-stack .danger {
+    margin-top: 8px;
+  }
+}
+
 .spaced {
   margin-top: 12px;
 }
