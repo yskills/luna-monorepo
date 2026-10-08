@@ -37,6 +37,7 @@
         <textarea id="chatInput" class="luna-chat__input" placeholder="Schreib hier..."></textarea>
         <button id="btnConversation" class="luna-chat__btn" type="button" title="Gesprächsmodus">◉</button>
         <button id="btnVoice" class="luna-chat__btn" type="button" title="Voice">🎤</button>
+        <button id="btnImage" class="luna-chat__btn" type="button" title="Bild erzeugen (Text = Bildbeschreibung)">🖼</button>
         <button id="btnSend" class="luna-chat__btn luna-chat__btn--accent" type="button" title="Senden">→</button>
       </footer>
     </div>
@@ -72,6 +73,7 @@
     btnSend: document.getElementById('btnSend'),
     btnConversation: document.getElementById('btnConversation'),
     btnVoice: document.getElementById('btnVoice'),
+    btnImage: document.getElementById('btnImage'),
     btnMode: document.getElementById('btnMode'),
     btnSettings: document.getElementById('btnSettings'),
     btnClose: document.getElementById('btnClose'),
@@ -109,15 +111,28 @@
     localStorage.setItem(PREFS_KEY, JSON.stringify({ open: state.open, mode: state.mode, characterId: state.characterId }));
   }
 
+  function escapeHtml(value) {
+    return String(value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  }
+
+  // Image messages (contract: type "image") only render images served by the Luna API.
+  function renderImage(image = {}) {
+    const url = String(image.url || '');
+    if (!/^\/assistant\/image\/[0-9a-f-]{36}$/.test(url)) return '';
+    const badge = image.localOnly ? '<span class="luna-chat__image-badge">nur lokal</span>' : '';
+    return `<figure class="luna-chat__image"><img src="${url}" alt="${escapeHtml(image.prompt || 'Bild von Luna')}" loading="lazy" />${badge}</figure>`;
+  }
+
   function renderMessages() {
     const items = getMessages();
     el.log.innerHTML = items.map((m) => {
       const user = m.role === 'user';
+      const content = m.type === 'image' ? renderImage(m.image) : `<div class="luna-chat__bubble">${escapeHtml(m.text)}</div>`;
       return `
         <article class="luna-chat__msg ${user ? 'user' : 'assistant'}">
           <div class="luna-chat__msg-avatar">${user ? 'U' : 'L'}</div>
           <div class="luna-chat__msg-stack">
-            <div class="luna-chat__bubble">${String(m.text || '').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</div>
+            ${content}
             <div class="luna-chat__meta">${user ? 'DU' : 'LUNA'} · ${new Date(m.createdAt || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         </article>
@@ -126,11 +141,20 @@
     el.log.scrollTop = el.log.scrollHeight;
   }
 
-  function pushMessage(role, text) {
-    const next = [...getMessages(), { role, text: String(text || ''), createdAt: new Date().toISOString() }];
+  function pushMessage(role, text, extra = {}) {
+    const next = [...getMessages(), { role, type: 'text', text: String(text || ''), createdAt: new Date().toISOString(), ...extra }];
     state.messagesByCharacter[state.characterId] = next;
     saveMessages();
     renderMessages();
+  }
+
+  async function sendImage(prompt) {
+    const res = await fetch('/assistant/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ characterId: state.characterId, mode: state.mode, prompt }),
+    });
+    return res.json();
   }
 
   async function sendChat(message) {
@@ -218,7 +242,21 @@
     pushMessage('assistant', out?.reply || `⚠️ ${out?.error?.message || 'Fehler'}`);
   }
 
+  async function submitImage() {
+    const prompt = String(el.input.value || '').trim();
+    if (!prompt) return;
+    el.input.value = '';
+    pushMessage('user', `🖼 ${prompt}`);
+    const out = await sendImage(prompt).catch(() => ({ ok: false, error: { message: 'API nicht erreichbar' } }));
+    if (out?.type === 'image' && out.image) {
+      pushMessage('assistant', '', { type: 'image', image: { ...out.image, prompt } });
+      return;
+    }
+    pushMessage('assistant', out?.reply || `⚠️ ${out?.error?.message || 'Fehler'}`);
+  }
+
   el.btnSend.addEventListener('click', submitMessage);
+  el.btnImage.addEventListener('click', submitImage);
   el.input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();

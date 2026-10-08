@@ -24,6 +24,18 @@ export function createLunaApiClient({ baseUrl = '/assistant' } = {}) {
       });
     },
 
+    // Returns { type: 'image', image } or, when the content policy blocks it, { type: 'text', reply }.
+    imageGenerate({ characterId = 'luna', mode = 'normal', prompt = '' } = {}) {
+      return request('/image', {
+        method: 'POST',
+        body: { characterId, mode, prompt: String(prompt || '') },
+      });
+    },
+
+    safetyBlocks(limit = 50) {
+      return request(`/safety/blocks?limit=${encodeURIComponent(limit)}`);
+    },
+
     settingsGet(characterId = 'luna') {
       return request(`/settings?characterId=${encodeURIComponent(characterId)}`);
     },

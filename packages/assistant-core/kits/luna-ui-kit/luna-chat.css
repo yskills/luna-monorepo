@@ -229,6 +229,33 @@
 .luna-chat__msg.assistant .luna-chat__bubble { background: #111827; }
 .luna-chat__msg.user .luna-chat__bubble { background: #1f2937; }
 
+.luna-chat__image {
+  position: relative;
+  margin: 0;
+  max-width: 260px;
+  border: 1px solid var(--luna-border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #111827;
+}
+
+.luna-chat__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.luna-chat__image-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(17, 24, 39, 0.8);
+  color: var(--luna-muted);
+}
+
 .luna-chat__meta {
   margin-top: 3px;
   font-size: 11px;
@@ -239,7 +266,7 @@
   border-top: 1px solid var(--luna-border);
   padding: 10px;
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto;
   gap: 8px;
   background: rgba(15, 23, 42, .95);
 }

@@ -4,6 +4,15 @@ import LLMClient from './assistant/LLMClient.js';
 import StateStoreFactory from './assistant/storage/StateStoreFactory.js';
 import MemorySchemaManager from './assistant/MemorySchemaManager.js';
 import ModeConfigRepository from './assistant/ModeConfigRepository.js';
+import ProviderRouter from './assistant/providers/ProviderRouter.js';
+import ContentPolicy from './assistant/safety/ContentPolicy.js';
+import BlockLog from './assistant/safety/BlockLog.js';
+import { createTextGuard, createImageGuard } from './assistant/safety/guards.js';
+import ImageService from './image/ImageService.js';
+import ImageStore from './image/ImageStore.js';
+import ComfyUIProvider from './image/ComfyUIProvider.js';
+import OpenAIImagesProvider from './image/OpenAIImagesProvider.js';
+import { createOllamaVramReleaser } from './image/ollamaVram.js';
 import { resolveRuntimeConfig } from '../config/runtimeConfig.js';
 
 const DEFAULT_VOICE_SETTINGS = {
@@ -259,7 +268,16 @@ const LUNA_BEHAVIOR_PRESETS = [
 ];
 
 export class CompanionLLMService {
-  constructor({ env = process.env, cwd = process.cwd(), runtime = {} } = {}) {
+  // Options-object DI: every collaborator below can be injected (tests, other hosts).
+  constructor({
+    env = process.env,
+    cwd = process.cwd(),
+    runtime = {},
+    fetchImpl = undefined,
+    providerRouter = null,
+    contentPolicy = null,
+    imageService = null,
+  } = {}) {
     this.env = env;
     this.runtime = {
       ...resolveRuntimeConfig({ env, cwd }),
@@ -269,8 +287,6 @@ export class CompanionLLMService {
     this.provider = (env.LLM_PROVIDER || 'ollama').toLowerCase();
     this.model = String(env.LLM_MODEL || env.OPENAI_MODEL || 'luna:latest').trim() || 'luna:latest';
     this.ollamaHost = env.OLLAMA_HOST || 'http://127.0.0.1:11434';
-    this.openaiBaseUrl = env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    this.openaiApiKey = env.OPENAI_API_KEY || '';
     this.webSearchEnabled = ['1', 'true', 'yes', 'on'].includes(String(env.ASSISTANT_WEB_SEARCH_ENABLED || '').toLowerCase());
     this.webSearchCharacterIds = String(env.ASSISTANT_WEB_SEARCH_CHARACTERS || 'luna')
       .split(',')
@@ -329,12 +345,35 @@ export class CompanionLLMService {
       summaryContextWindow: this.summaryContextWindow,
     });
 
+    this.providerRouter = providerRouter || new ProviderRouter({
+      env,
+      fetchImpl,
+      defaultRoute: { provider: this.provider, model: this.model },
+    });
+
+    this.contentPolicy = contentPolicy || new ContentPolicy({
+      textGuard: createTextGuard(
+        { provider: env.ASSISTANT_TEXT_GUARD ?? 'llama-guard', model: env.ASSISTANT_TEXT_GUARD_MODEL || 'llama-guard3:1b' },
+        { host: this.ollamaHost, fetchImpl },
+      ),
+      imageGuard: createImageGuard(
+        {
+          provider: env.ASSISTANT_IMAGE_GUARD ?? 'ollama-vision',
+          model: env.ASSISTANT_IMAGE_GUARD_MODEL || 'huihui_ai/qwen3.5-abliterated:9b-q4_K',
+          url: env.ASSISTANT_IMAGE_GUARD_URL,
+        },
+        { host: this.ollamaHost, fetchImpl },
+      ),
+      blockLog: new BlockLog({ filePath: this.runtime.safetyLogFile }),
+      getPolicyConfig: () => this.loadModeConfig().contentPolicy,
+    });
+
     this.llmClient = new LLMClient({
-      provider: this.provider,
-      model: this.model,
-      ollamaHost: this.ollamaHost,
-      openaiBaseUrl: this.openaiBaseUrl,
-      openaiApiKey: this.openaiApiKey,
+      env,
+      providerRouter: this.providerRouter,
+      getRouting: () => this.loadModeConfig().llmRouting,
+      isLocalOnly: (user, mode) => this.getContentLevel(user, mode).localOnly,
+      isWebSearchAllowedForMode: (user, mode) => this.getContentLevel(user, mode).allowWebSearch,
       buildSystemPrompt: this.buildSystemPrompt.bind(this),
       temperature: 0.72,
       topP: 0.9,
@@ -342,6 +381,76 @@ export class CompanionLLMService {
       webSearchCharacterIds: this.webSearchCharacterIds,
       webSearchMaxItems: this.webSearchMaxItems,
     });
+
+    this.imageService = imageService || this.createImageService({ env, fetchImpl });
+  }
+
+  createImageService({ env, fetchImpl }) {
+    const shared = fetchImpl ? { fetchImpl } : {};
+    const providers = {
+      comfyui: new ComfyUIProvider({
+        baseUrl: env.COMFYUI_URL || 'http://127.0.0.1:8188',
+        workflowDirs: this.runtime.comfyWorkflowDirs || [],
+        beforeGenerate: createOllamaVramReleaser({ host: this.ollamaHost, ...shared }),
+        ...shared,
+      }),
+    };
+    if (env.IMAGE_API_BASE_URL || env.IMAGE_API_KEY) {
+      providers['openai-images'] = new OpenAIImagesProvider({
+        baseUrl: env.IMAGE_API_BASE_URL || 'https://api.openai.com/v1',
+        apiKey: env.IMAGE_API_KEY || '',
+        model: env.IMAGE_API_MODEL || 'gpt-image-1',
+        ...shared,
+      });
+    }
+    return new ImageService({
+      providers,
+      contentPolicy: this.contentPolicy,
+      store: new ImageStore({ dir: this.runtime.imageDir || 'data/images' }),
+      getConfig: () => this.loadModeConfig(),
+      referenceDir: this.runtime.imageReferenceDir || 'data/image-references',
+    });
+  }
+
+  getCharacterSafetyContext(user = null, mode = 'normal') {
+    const loaded = this.loadModeConfig();
+    const characterId = this.normalizeCharacterId(user?.profile?.characterId, loaded);
+    const character = loaded.characterProfiles[characterId] || {};
+    return {
+      mode: this.normalizeMode(mode),
+      characterId,
+      characterName: character.name || '',
+      characterAge: character.definition?.assistantProfile?.age || loaded.assistantProfile?.age || '',
+      language: loaded.assistant?.language || 'en',
+    };
+  }
+
+  getContentLevel(user = null, mode = 'normal') {
+    return this.contentPolicy.resolveLevel(this.getCharacterSafetyContext(user, mode));
+  }
+
+  buildBlockedReply(language = 'en') {
+    return String(language).toLowerCase().startsWith('de')
+      ? 'Das mache ich nicht, das ist durch meine Regeln gesperrt.'
+      : "I won't do that, it's blocked by my rules.";
+  }
+
+  async generateImage({ userId = 'default', prompt = '', mode = '' } = {}) {
+    const { user } = this.memoryManager.getUserState(userId);
+    const context = this.getCharacterSafetyContext(user, mode || user?.profile?.mode);
+    const result = await this.imageService.generate({ prompt, ...context });
+    if (result.blocked) {
+      return { ...result, text: this.buildBlockedReply(context.language), mode: context.mode, characterId: context.characterId };
+    }
+    return { ...result, mode: context.mode, characterId: context.characterId };
+  }
+
+  getImage(id = '') {
+    return this.imageService.getImage(id);
+  }
+
+  getSafetyBlocks(limit = 50) {
+    return this.contentPolicy.getRecentBlocks(limit);
   }
 
   normalizeMode(mode) {
@@ -393,7 +502,7 @@ export class CompanionLLMService {
 
   getWebSearchPreview(userId = 'default', message = '') {
     const { user } = this.memoryManager.getUserState(userId);
-    return this.llmClient.previewWebSearch(user, message);
+    return this.llmClient.previewWebSearch(user, message, user?.profile?.mode || 'normal');
   }
 
   addMessageFeedback(userId = 'default', payload = {}) {
@@ -445,8 +554,8 @@ export class CompanionLLMService {
     };
   }
 
-  isEnabled() {
-    return this.llmClient.isEnabled();
+  isEnabled(user = null, mode = 'normal') {
+    return this.llmClient.isEnabled(user, mode);
   }
 
   createMemoryStore() {
@@ -1000,8 +1109,16 @@ export class CompanionLLMService {
         .map((h) => String(h?.assistant || '').trim())
         .filter(Boolean);
 
-    if (!this.isEnabled()) {
+    if (!this.isEnabled(user, activeMode)) {
       throw new Error('LLM is disabled. Configure provider credentials before using chat.');
+    }
+
+    // Luna's own filter: fixed floor + local guard model, before and after the LLM.
+    // Blocked turns are answered with a short refusal and are not stored in memory.
+    const safetyContext = this.getCharacterSafetyContext(user, activeMode);
+    const inputCheck = await this.contentPolicy.checkText({ text: message, stage: 'input', ...safetyContext });
+    if (!inputCheck.allowed) {
+      return this.buildBlockedChatResult({ user, activeMode, modeConfig, check: inputCheck, language: safetyContext.language });
     }
 
     let llmResult = await this.callLLM(user, message, snapshot, recentHistory, activeMode, transientSystemInstruction);
@@ -1026,6 +1143,13 @@ export class CompanionLLMService {
 
     responseText = responseText.slice(0, this.maxMessageChars).trim();
 
+    const outputCheck = await this.contentPolicy.checkText({
+      text: responseText, stage: 'output', previousMessage: message, ...safetyContext,
+    });
+    if (!outputCheck.allowed) {
+      return this.buildBlockedChatResult({ user, activeMode, modeConfig, check: outputCheck, language: safetyContext.language });
+    }
+
     if (modeUsesChatMemory) {
       user.uncensoredHistory = [...(user.uncensoredHistory || []), {
         at: new Date().toISOString(),
@@ -1049,6 +1173,10 @@ export class CompanionLLMService {
       reply: responseText,
       meta: {
         webSearchUsed: !!llmResult?.meta?.webSearchUsed,
+        provider: llmResult?.meta?.provider || '',
+        model: llmResult?.meta?.model || '',
+        fallbackUsed: !!llmResult?.meta?.fallbackUsed,
+        contentLevel: outputCheck.level,
       },
       profile: user.profile,
       llmEnabled: this.isEnabled(),
@@ -1057,16 +1185,23 @@ export class CompanionLLMService {
     };
   }
 
+  buildBlockedChatResult({ user, activeMode, modeConfig, check, language }) {
+    return {
+      reply: this.buildBlockedReply(language),
+      meta: {
+        webSearchUsed: false,
+        blocked: { stage: check.stage, category: check.category },
+        contentLevel: check.level,
+      },
+      profile: user.profile,
+      llmEnabled: true,
+      mode: activeMode,
+      ...this.getModeConfig(activeMode, modeConfig, user.profile.characterId),
+    };
+  }
+
   async callLLM(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
     return this.llmClient.chat(user, message, snapshot, recentHistory, mode, transientSystemInstruction);
-  }
-
-  async callOllama(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
-    return this.llmClient.callOllama(user, message, snapshot, recentHistory, mode, transientSystemInstruction);
-  }
-
-  async callOpenAICompatible(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
-    return this.llmClient.callOpenAICompatible(user, message, snapshot, recentHistory, mode, transientSystemInstruction);
   }
 }
 

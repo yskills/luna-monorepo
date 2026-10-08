@@ -29,6 +29,29 @@ class ModeConfigRepository {
       .slice(-Math.max(1, Number(limit) || 1));
   }
 
+  // Routing, policy and image blocks are free-form, but must never carry secrets:
+  // a route names the env variable that holds a key (apiKeyEnv), never the key itself.
+  static assertNoSecrets(value, trail = 'config') {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => ModeConfigRepository.assertNoSecrets(item, `${trail}[${index}]`));
+      return;
+    }
+    if (!ModeConfigRepository.isPlainObject(value)) return;
+    Object.entries(value).forEach(([key, child]) => {
+      if (/^(api_?key|token|secret|password|authorization)$/i.test(key)) {
+        throw new Error(`${trail}.${key}: secrets are not allowed in the mode config, use an env variable (apiKeyEnv).`);
+      }
+      ModeConfigRepository.assertNoSecrets(child, `${trail}.${key}`);
+    });
+  }
+
+  static optionalObject(value, name) {
+    if (value === undefined || value === null) return {};
+    if (!ModeConfigRepository.isPlainObject(value)) throw new Error(`${name} must be an object`);
+    ModeConfigRepository.assertNoSecrets(value, name);
+    return JSON.parse(JSON.stringify(value));
+  }
+
   requireModes(objectName = 'value', map = {}) {
     const source = ModeConfigRepository.isPlainObject(map) ? map : {};
     this.allowedModes.forEach((mode) => {
@@ -124,6 +147,7 @@ class ModeConfigRepository {
           ...definition,
           assistantProfile: profileAssistant,
         },
+        image: ModeConfigRepository.optionalObject(profileSource.image, `characterProfiles.${id}.image`),
       };
 
       return acc;
@@ -201,6 +225,9 @@ class ModeConfigRepository {
         avoidPhrases: ModeConfigRepository.toStringArray(consistencyProfile.avoidPhrases, 30),
         mustDo: ModeConfigRepository.toStringArray(consistencyProfile.mustDo, 30),
       },
+      llmRouting: ModeConfigRepository.optionalObject(parsed.llmRouting, 'llmRouting'),
+      contentPolicy: ModeConfigRepository.optionalObject(parsed.contentPolicy, 'contentPolicy'),
+      imageGeneration: ModeConfigRepository.optionalObject(parsed.imageGeneration, 'imageGeneration'),
       modeProfiles: {
         normal: {
           mission: ModeConfigRepository.toString(modeProfiles?.normal?.mission, 'personal-assistant'),

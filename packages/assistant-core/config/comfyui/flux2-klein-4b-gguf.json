@@ -1,0 +1,41 @@
+{
+  "_luna": {
+    "description": "FLUX.2 [klein] 4B, GGUF Q4 (fits 8 GB VRAM). Needs the ComfyUI-GGUF custom node. Reference images are chained through ReferenceLatent to keep the face consistent.",
+    "defaults": {
+      "checkpoint": "flux-2-klein-4b-Q4_K_M.gguf",
+      "text_encoder": "qwen_3_4b.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "steps": 4
+    },
+    "referenceChain": {
+      "conditioning": ["4", 0],
+      "vae": ["3", 0],
+      "consumers": [["6", "positive"]],
+      "max": 4,
+      "megapixels": 1
+    }
+  },
+  "1": { "class_type": "UnetLoaderGGUF", "inputs": { "unet_name": "{{checkpoint}}" } },
+  "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "{{text_encoder}}", "type": "flux2" } },
+  "3": { "class_type": "VAELoader", "inputs": { "vae_name": "{{vae}}" } },
+  "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{prompt}}", "clip": ["2", 0] } },
+  "5": { "class_type": "EmptyFlux2LatentImage", "inputs": { "width": "{{width}}", "height": "{{height}}", "batch_size": 1 } },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0],
+      "seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
+    }
+  },
+  "7": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["4", 0] } },
+  "8": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["3", 0] } },
+  "9": { "class_type": "SaveImage", "inputs": { "images": ["8", 0], "filename_prefix": "luna" } }
+}

@@ -6,6 +6,7 @@ import {
   ensureDirectory,
   resolveRuntimeConfig,
 } from '../../src/config/runtimeConfig.js';
+import { describeLoraReadiness } from '../../src/training/loraReadiness.js';
 
 const runtime = resolveRuntimeConfig();
 const OUTPUT_DIR = runtime.trainingDir;
@@ -228,11 +229,14 @@ async function main() {
       ratios: curatedSplit.ratios,
     },
     users: Object.keys(memory?.users || {}).length,
+    loraReadiness: describeLoraReadiness(datasets.curated.length, runtime.trainMinCurated),
   };
 
   fs.writeFileSync(OUTPUT_FILE_SUMMARY, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
   console.log(JSON.stringify(summary, null, 2));
+  // Human-readable count on stderr so callers can keep parsing stdout as JSON.
+  console.error(summary.loraReadiness.message);
 }
 
 main().catch((error) => {

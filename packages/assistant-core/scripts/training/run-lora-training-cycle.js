@@ -5,6 +5,7 @@ import {
   assertFileExists,
   ensureDirectory,
   resolveRuntimeConfig,
+  MIN_CURATED_FOR_LORA,
 } from '../../src/config/runtimeConfig.js';
 import { LoraTrainingGateway } from '../../src/training/LoraTrainingGateway.js';
 
@@ -139,7 +140,7 @@ async function main() {
   const startedAt = new Date().toISOString();
 
   const datasetTier = parseArgValue(args, '--datasetTier', runtime?.lora?.defaultDatasetTier || 'curated');
-  const minCurated = parseNumberArg(args, '--minCurated', runtime.trainMinCurated || 20, 1);
+  const minCurated = Math.max(MIN_CURATED_FOR_LORA, parseNumberArg(args, '--minCurated', runtime.trainMinCurated, 1));
   const skipEval = parseBooleanFlag(args, '--skipEval');
   const skipExport = parseBooleanFlag(args, '--skipExport');
   const dryRun = parseBooleanFlag(args, '--dryRun');

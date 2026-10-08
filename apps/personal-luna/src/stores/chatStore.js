@@ -79,5 +79,29 @@ export const useChatStore = defineStore('chat', {
         this.loading = false
       }
     },
+
+    // The draft becomes the picture description; Luna's content policy may answer with text instead.
+    async sendImage(text) {
+      const prompt = String(text || '').trim()
+      if (!prompt || this.loading) return
+
+      this.lastError = ''
+      this.messages.push({ id: crypto.randomUUID(), role: 'user', text: `🖼 ${prompt}` })
+      this.loading = true
+
+      try {
+        const result = await chatOrchestrator.generateImage({ prompt, mode: this.mode, characterId: this.characterId })
+        if (result?.type === 'image' && result.image) {
+          this.messages.push({ id: crypto.randomUUID(), role: 'assistant', type: 'image', text: '', image: { ...result.image, prompt } })
+        } else {
+          this.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: String(result?.reply || '').trim() || '(kein Bild)' })
+        }
+      } catch (error) {
+        this.lastError = error.message
+        this.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: `Fehler: ${error.message}` })
+      } finally {
+        this.loading = false
+      }
+    },
   },
 })

@@ -57,6 +57,10 @@ export class ChatOrchestrator {
     await this.applyModePreset(mode, characterId)
   }
 
+  async generateImage({ prompt, mode, characterId }) {
+    return this.apiClient.generateImage({ prompt, mode, characterId })
+  }
+
   async fetchSystemStatus() {
     const [healthResult, trainingResult, trainerResult] = await Promise.allSettled([
       this.apiClient.getHealth(),

@@ -37,6 +37,8 @@ Optional für den Ensure-Task:
 - `ASSISTANT_TRAINER_BUILD_ON_START=true` → beim Ensure zusätzlich `--build` (lauter/langsamer)
 - `ASSISTANT_LORA_ENSURE_ON_DEMAND=false` → On-Demand-Ensure über API deaktivieren
 
+Brain upgrade, images and content filter: see [BRAIN-UPGRADE.md](./BRAIN-UPGRADE.md).
+
 Wichtige Super-Luna Defaults (`.env`):
 
 - `LLM_PROVIDER=ollama`

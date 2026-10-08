@@ -23,6 +23,18 @@ async function send() {
   await store.sendMessage(payload)
 }
 
+async function sendImage() {
+  if (!canSend.value) return
+  const payload = draft.value
+  draft.value = ''
+  await store.sendImage(payload)
+}
+
+// Only images served by Luna's own API are rendered.
+function isLunaImage(item) {
+  return item.type === 'image' && /^\/assistant\/image\/[0-9a-f-]{36}$/.test(String(item.image?.url || ''))
+}
+
 watch(
   () => messages.value.length,
   async () => {
@@ -41,9 +53,13 @@ watch(
         v-for="item in messages"
         :key="item.id"
         class="msg"
-        :class="item.role"
+        :class="[item.role, { image: isLunaImage(item) }]"
       >
-        {{ item.text }}
+        <figure v-if="isLunaImage(item)" class="msg-image">
+          <img :src="item.image.url" :alt="item.image.prompt || 'Bild von Luna'" loading="lazy" />
+          <figcaption v-if="item.image.localOnly" class="chip">nur lokal</figcaption>
+        </figure>
+        <template v-else>{{ item.text }}</template>
       </article>
       <p v-if="loading" class="muted">Luna denkt ...</p>
     </div>
@@ -55,6 +71,7 @@ watch(
         @keydown.enter.exact.prevent="send"
       />
       <PushToTalkButton @transcript="onTranscript" />
+      <button type="button" :disabled="!canSend" title="Text als Bildbeschreibung senden" @click="sendImage">Bild</button>
       <button type="submit" :disabled="!canSend">Senden</button>
     </form>
   </section>

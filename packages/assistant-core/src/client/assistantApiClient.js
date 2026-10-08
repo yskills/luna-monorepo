@@ -137,6 +137,14 @@ export function createAssistantApiClient({
       return request('/chat', { method: 'POST', body: payload || {} });
     },
 
+    generateImage(payload = {}) {
+      return request('/image', { method: 'POST', body: payload || {} });
+    },
+
+    safetyBlocks(limit = 50) {
+      return request(`/safety/blocks${buildQuery({ limit })}`);
+    },
+
     getCharacters() {
       return request('/characters');
     },
@@ -169,11 +177,11 @@ export function createAssistantApiClient({
       return request('/training/prepare', { method: 'POST', body: {} });
     },
 
-    trainAuto(minCurated = 20) {
+    trainAuto(minCurated = 300) {
       return request('/training/auto', { method: 'POST', body: { minCurated } });
     },
 
-    trainStatus(minCurated = 20) {
+    trainStatus(minCurated = 300) {
       return request(`/training/status${buildQuery({ minCurated })}`);
     },
 

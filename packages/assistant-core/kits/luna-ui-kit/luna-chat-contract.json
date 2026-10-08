@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework-agnostischer Contract für Luna Chat + Voice + Model + Avatar + Web",
   "uiRules": {
     "showAvatarOnlyInConversationMode": true,
@@ -15,8 +15,45 @@
           "characterId": "luna",
           "mode": "normal",
           "message": "string"
+        },
+        "response": {
+          "type": "text",
+          "reply": "string",
+          "mode": "normal | uncensored",
+          "meta": {
+            "webSearchUsed": "boolean",
+            "provider": "ollama | openai-compatible | anthropic",
+            "model": "string",
+            "fallbackUsed": "boolean",
+            "contentLevel": "public | standard | adult",
+            "blocked": "optional { stage, category } when Luna's content policy refused"
+          }
         }
       }
+    },
+    "image": {
+      "generate": {
+        "method": "POST",
+        "path": "/assistant/image",
+        "body": {
+          "characterId": "luna",
+          "mode": "normal",
+          "prompt": "string"
+        },
+        "response": {
+          "type": "image | text (text when blocked, with meta.blocked)",
+          "reply": "string",
+          "image": "ImageMessage.image"
+        }
+      },
+      "file": { "method": "GET", "path": "/assistant/image/{id}" },
+      "recommendedEnv": {
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "ASSISTANT_IMAGE_GUARD": "ollama-vision"
+      }
+    },
+    "safety": {
+      "blocks": { "method": "GET", "path": "/assistant/safety/blocks?limit=50" }
     },
     "voice": {
       "config": { "method": "GET", "path": "/assistant/voice/config?characterId=luna" },
@@ -34,6 +71,8 @@
       "recommendedEnv": {
         "LLM_PROVIDER": "ollama",
         "LLM_MODEL": "luna:latest",
+        "LLM_FALLBACK_MODEL": "luna:latest",
+        "ASSISTANT_TEXT_GUARD": "llama-guard",
         "ASSISTANT_FORCE_CHARACTER_ID": "luna"
       }
     },
@@ -52,6 +91,33 @@
         "ASSISTANT_WEB_SEARCH_MAX_ITEMS": "3",
         "ASSISTANT_WEB_SEARCH_TIMEOUT_MS": "9000"
       }
+    }
+  },
+  "messages": {
+    "TextMessage": {
+      "id": "string",
+      "role": "user | assistant",
+      "type": "text",
+      "text": "string",
+      "createdAt": "ISO-8601"
+    },
+    "ImageMessage": {
+      "id": "string",
+      "role": "assistant",
+      "type": "image",
+      "text": "optional caption",
+      "image": {
+        "id": "uuid",
+        "url": "/assistant/image/{id} (render only URLs with this prefix)",
+        "mimeType": "image/png | image/jpeg | image/webp",
+        "width": "number",
+        "height": "number",
+        "provider": "comfyui | openai-images",
+        "level": "public | standard | adult",
+        "localOnly": "boolean (true: never post or mail this image)",
+        "referencesUsed": "number of face reference images used"
+      },
+      "createdAt": "ISO-8601"
     }
   }
 }

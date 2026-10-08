@@ -77,6 +77,15 @@ export class AssistantSdkClient {
     return this.request('/chat', 'POST', { message, mode, characterId })
   }
 
+  // Returns { type: 'image', image: { url, ... } } or, when blocked, { type: 'text', reply }.
+  generateImage({ prompt, mode, characterId }) {
+    return this.request('/image', 'POST', { prompt, mode, characterId })
+  }
+
+  getSafetyBlocks(limit = 50) {
+    return this.request(`/safety/blocks?limit=${encodeURIComponent(limit)}`)
+  }
+
   getMode(characterId = 'luna') {
     return this.request(`/mode?characterId=${encodeURIComponent(characterId)}`)
   }
@@ -97,7 +106,7 @@ export class AssistantSdkClient {
     return this.request(`/voice/settings?characterId=${encodeURIComponent(characterId)}`)
   }
 
-  getTrainingStatus(minCurated = 20) {
+  getTrainingStatus(minCurated = 300) {
     return this.request(`/training/status?minCurated=${encodeURIComponent(minCurated)}`)
   }
 

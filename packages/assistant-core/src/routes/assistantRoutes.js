@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { resolveRuntimeConfig } from '../config/runtimeConfig.js';
+import { resolveRuntimeConfig, MIN_CURATED_FOR_LORA } from '../config/runtimeConfig.js';
 import { LoraTrainingGateway } from '../training/LoraTrainingGateway.js';
 
 const UNCENSORED_MODE_PASSWORD = String(
@@ -333,6 +333,12 @@ function ensureLoraTrainerOnDemand({ runtime, body = {}, timeoutMs = 4 * 60 * 10
   };
 }
 
+// Requests may ask for a higher bar, never a lower one than MIN_CURATED_FOR_LORA.
+export function clampMinCurated(value, fallback = MIN_CURATED_FOR_LORA) {
+  const requested = Number(value || fallback);
+  return Math.max(MIN_CURATED_FOR_LORA, Number.isFinite(requested) ? Math.floor(requested) : MIN_CURATED_FOR_LORA);
+}
+
 function buildLoraCliArgs({
   body = {},
   runtime,
@@ -341,7 +347,7 @@ function buildLoraCliArgs({
   skipExportDefault = false,
 } = {}) {
   const datasetTier = String(body.datasetTier || runtime?.lora?.defaultDatasetTier || 'curated').trim().toLowerCase();
-  const minCurated = Math.max(1, Number(body.minCurated || minCuratedDefault || runtime.trainMinCurated || 20));
+  const minCurated = clampMinCurated(body.minCurated || minCuratedDefault || runtime.trainMinCurated);
   const baseModel = String(body.baseModel || runtime?.lora?.defaultBaseModel || '').trim();
   const adapterName = String(body.adapterName || runtime?.lora?.defaultAdapterName || 'luna-adapter').trim();
 
@@ -808,10 +814,10 @@ export default function createAssistantRouter({
 
   router.post('/training/auto', (req, res) => {
     try {
-      const minCurated = parsePositiveInt(req?.body?.minCurated, runtime.trainMinCurated || 20, {
+      const minCurated = clampMinCurated(parsePositiveInt(req?.body?.minCurated, runtime.trainMinCurated, {
         min: 1,
         max: 1_000_000,
-      });
+      }));
       const { stdout, stderr, exitCode, parsed } = runNpmScriptCommand({
         runtime,
         scriptName: 'train:auto',
@@ -845,7 +851,7 @@ export default function createAssistantRouter({
 
   router.get('/training/status', (req, res) => {
     try {
-      const minCurated = Math.max(1, Number(req?.query?.minCurated || runtime.trainMinCurated || 20));
+      const minCurated = clampMinCurated(req?.query?.minCurated || runtime.trainMinCurated);
       const summaryFile = path.resolve(runtime.trainingDir, 'assistant-sft-summary.json');
       const evalReportFile = path.resolve(runtime.evalReportsDir, 'latest.json');
       const { loraReportFile, loraRegistryFile, adapterOutputDir } = resolveLoraFiles(runtime);
@@ -1039,13 +1045,11 @@ export default function createAssistantRouter({
         skipEval: body.skipEval == null ? true : body.skipEval,
         skipExport: body.skipExport == null ? false : body.skipExport,
         datasetTier: body.datasetTier || 'curated',
-        minCurated: body.minCurated || 1,
       };
 
       const { args, minCurated } = buildLoraCliArgs({
         body: mergedBody,
         runtime,
-        minCuratedDefault: 1,
         skipEvalDefault: true,
         skipExportDefault: false,
       });
@@ -1131,10 +1135,8 @@ export default function createAssistantRouter({
           skipEval: body.skipEval == null ? true : body.skipEval,
           skipExport: body.skipExport == null ? false : body.skipExport,
           datasetTier: body.datasetTier || 'curated',
-          minCurated: body.minCurated || 1,
-        },
+          },
         runtime,
-        minCuratedDefault: 1,
         skipEvalDefault: true,
         skipExportDefault: false,
       });
@@ -1261,7 +1263,6 @@ export default function createAssistantRouter({
       const { args, minCurated } = buildLoraCliArgs({
         body,
         runtime,
-        minCuratedDefault: 1,
         skipEvalDefault: true,
         skipExportDefault: false,
       });
@@ -1340,6 +1341,7 @@ export default function createAssistantRouter({
       return res.json({
         ok: true,
         requestId: req.requestId,
+        type: 'text',
         reply: assistantResult.reply,
         profile: assistantResult.profile,
         llmEnabled: assistantResult.llmEnabled,
@@ -1352,6 +1354,62 @@ export default function createAssistantRouter({
       return sendErrorResponse(res, 500, error.message, req.requestId);
     }
   });
+
+  // Image messages. Generated images are only served through this authenticated router.
+  router.post('/image', async (req, res) => {
+    if (typeof CompanionLLMService.generateImage !== 'function') {
+      return sendErrorResponse(res, 501, 'Image generation is not available in this service.', req.requestId);
+    }
+    const prompt = String(req.body?.prompt || '').trim();
+    if (!prompt) return sendErrorResponse(res, 400, 'prompt is required.', req.requestId);
+    try {
+      const result = await CompanionLLMService.generateImage({
+        userId: getAssistantUserId(req),
+        prompt,
+        mode: req.body?.mode,
+      });
+      if (result.blocked) {
+        return res.json({
+          ok: true,
+          requestId: req.requestId,
+          type: 'text',
+          reply: result.text,
+          mode: result.mode,
+          characterId: result.characterId,
+          meta: { blocked: { stage: result.stage, category: result.category }, contentLevel: result.level },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return res.json({
+        ok: true,
+        requestId: req.requestId,
+        type: 'image',
+        reply: '',
+        image: result.image,
+        mode: result.mode,
+        characterId: result.characterId,
+        meta: { contentLevel: result.image.level },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      return sendErrorResponse(res, 503, `Image generation unavailable: ${error.message}`, req.requestId);
+    }
+  });
+
+  router.get('/image/:id', (req, res) => {
+    const image = typeof CompanionLLMService.getImage === 'function' ? CompanionLLMService.getImage(req.params.id) : null;
+    if (!image) return sendErrorResponse(res, 404, 'Image not found.', req.requestId);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type(image.mimeType);
+    return res.sendFile(image.filePath);
+  });
+
+  router.get('/safety/blocks', safe((req, res) => ok(req, res, {
+    blocks: typeof CompanionLLMService.getSafetyBlocks === 'function'
+      ? CompanionLLMService.getSafetyBlocks(Number(req.query?.limit || 50))
+      : [],
+  })));
 
   router.get('/characters', (req, res) => {
     try {

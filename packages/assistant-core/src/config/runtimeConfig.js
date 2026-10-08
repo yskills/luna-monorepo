@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const DEFAULT_LORA_REQUEST_TIMEOUT_MS = 45_000;
+const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+// Hard minimum of curated samples before any LoRA run (env can raise it, not lower it).
+export const MIN_CURATED_FOR_LORA = 300;
 
 function resolvePath(baseDir, maybePath, fallbackSegments = []) {
   const candidate = String(maybePath || '').trim();
@@ -46,10 +51,14 @@ export function resolveRuntimeConfig({ env = process.env, cwd = process.cwd() } 
 
   const modeConfigFile = resolvePath(rootDir, env.ASSISTANT_MODE_CONFIG_FILE, [path.relative(rootDir, fallbackConfigPath)]);
 
+  const memorySqliteFile = resolvePath(rootDir, env.ASSISTANT_MEMORY_FILE, [path.relative(rootDir, memoryDir), 'assistant-memory.sqlite']);
+  // Images and the block log sit next to the memory database (the writable /data volume in Docker).
+  const dataDir = path.dirname(memorySqliteFile);
+
   return {
     rootDir,
     memoryDir,
-    memorySqliteFile: resolvePath(rootDir, env.ASSISTANT_MEMORY_FILE, [path.relative(rootDir, memoryDir), 'assistant-memory.sqlite']),
+    memorySqliteFile,
     memoryKey: String(env.ASSISTANT_MEMORY_KEY || 'assistant-memory').trim() || 'assistant-memory',
     modeConfigFile,
     evalConfigFile: resolvePath(rootDir, env.ASSISTANT_EVAL_CONFIG_FILE, ['config', 'eval', 'gate.config.json']),
@@ -59,7 +68,16 @@ export function resolveRuntimeConfig({ env = process.env, cwd = process.cwd() } 
     trainingDir,
     npmCommand: String(env.ASSISTANT_NPM_COMMAND || 'npm').trim() || 'npm',
     scriptsWorkingDir: resolvePath(rootDir, env.ASSISTANT_WORKING_DIR, ['.']),
-    trainMinCurated: toNumber(env.TRAIN_MIN_CURATED, 20, { min: 1 }),
+    imageDir: resolvePath(rootDir, env.ASSISTANT_IMAGE_DIR, [path.relative(rootDir, dataDir), 'images']),
+    imageReferenceDir: resolvePath(rootDir, env.ASSISTANT_IMAGE_REFERENCE_DIR, [path.relative(rootDir, dataDir), 'image-references']),
+    // Your own ComfyUI workflows (API format) win over the bundled ones with the same name.
+    comfyWorkflowDirs: [
+      ...(env.ASSISTANT_COMFY_WORKFLOW_DIR ? [resolvePath(rootDir, env.ASSISTANT_COMFY_WORKFLOW_DIR)] : []),
+      path.resolve(PACKAGE_ROOT, 'config', 'comfyui'),
+    ],
+    safetyLogFile: resolvePath(rootDir, env.ASSISTANT_SAFETY_LOG_FILE, [path.relative(rootDir, dataDir), 'safety-blocks.jsonl']),
+    // LoRA only pays off with enough curated data; memory is the main learning path until then.
+    trainMinCurated: toNumber(env.TRAIN_MIN_CURATED, MIN_CURATED_FOR_LORA, { min: MIN_CURATED_FOR_LORA }),
     lora: {
       enabled: toBoolean(env.ASSISTANT_LORA_ENABLED, false),
       provider: String(env.ASSISTANT_LORA_PROVIDER || 'generic-http').trim().toLowerCase(),

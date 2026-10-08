@@ -29,6 +29,10 @@ export class AssistantApiClient {
     return this.client.chat({ message, mode, characterId })
   }
 
+  async generateImage({ prompt, mode, characterId }) {
+    return this.client.generateImage({ prompt, mode, characterId })
+  }
+
   async setMode({ mode, characterId, password = '' }) {
     return this.client.setMode({ mode, characterId, password })
   }
@@ -49,7 +53,7 @@ export class AssistantApiClient {
     return this.client.health()
   }
 
-  async getTrainingStatus(minCurated = 20) {
+  async getTrainingStatus(minCurated = 300) {
     return this.client.getTrainingStatus(minCurated)
   }
 

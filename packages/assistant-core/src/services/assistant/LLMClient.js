@@ -1,6 +1,4 @@
-import path from 'path';
-import fs from 'fs';
-import { createRequire } from 'module';
+import ProviderRouter from './providers/ProviderRouter.js';
 
 const WEB_SEARCH_TRIGGERS = [
   'aktuell', 'heute', 'news', 'neuigkeit', 'letzte', 'latest',
@@ -13,57 +11,21 @@ const WEATHER_TRIGGERS = ['wetter', 'weather', 'forecast', 'vorhersage', 'temper
 
 const WEB_CONTEXT_FETCH_FAILED = 'Web-Kontext: Websuche wurde angefragt, aber der Abruf ist fehlgeschlagen.';
 
-const requireFromModule = createRequire(import.meta.url);
-
-function buildRequireCandidates() {
-  const candidates = [
-    path.resolve(process.cwd(), 'package.json'),
-    path.resolve(process.cwd(), 'backend', 'package.json'),
-    path.resolve(process.cwd(), '..', 'backend', 'package.json'),
-    path.resolve(process.cwd(), '..', 'package.json'),
-  ];
-
-  return candidates
-    .filter((candidate) => fs.existsSync(candidate))
-    .map((candidate) => createRequire(candidate));
-}
-
-const requireCandidates = buildRequireCandidates();
-
-async function importFromHost(specifier = '') {
-  const tryPaths = [];
-  try {
-    tryPaths.push(requireFromModule.resolve(specifier));
-  } catch {
-    // ignore
-  }
-
-  requireCandidates.forEach((resolver) => {
-    try {
-      tryPaths.push(resolver.resolve(specifier));
-    } catch {
-      // ignore
-    }
-  });
-
-  for (const resolved of tryPaths) {
-    try {
-      return await import(resolved);
-    } catch {
-      // keep trying fallbacks
-    }
-  }
-
-  throw new Error(`Cannot resolve module: ${specifier}`);
-}
-
 class LLMClient {
+  // Options-object DI: pass `providerRouter` (or the legacy provider/model fields to build one),
+  // `getRouting` for per-mode/character routes from config, and `isLocalOnly` to keep
+  // adult/secret modes away from hosted APIs.
   constructor({
     provider,
     model,
     ollamaHost,
     openaiBaseUrl,
     openaiApiKey,
+    env = process.env,
+    providerRouter = null,
+    getRouting = () => ({}),
+    isLocalOnly = () => false,
+    isWebSearchAllowedForMode = () => true,
     buildSystemPrompt,
     temperature = 0.85,
     topP = 0.95,
@@ -71,11 +33,18 @@ class LLMClient {
     webSearchCharacterIds = ['luna'],
     webSearchMaxItems = 3,
   } = {}) {
-    this.provider = (provider || 'ollama').toLowerCase();
-    this.model = model;
-    this.ollamaHost = ollamaHost;
-    this.openaiBaseUrl = openaiBaseUrl;
-    this.openaiApiKey = openaiApiKey;
+    this.providerRouter = providerRouter || new ProviderRouter({
+      env: {
+        ...env,
+        ...(ollamaHost ? { OLLAMA_HOST: ollamaHost } : {}),
+        ...(openaiBaseUrl ? { OPENAI_BASE_URL: openaiBaseUrl } : {}),
+        ...(openaiApiKey ? { OPENAI_API_KEY: openaiApiKey } : {}),
+      },
+      defaultRoute: { provider: provider || 'ollama', model: model || 'luna:latest' },
+    });
+    this.getRouting = getRouting;
+    this.isLocalOnly = isLocalOnly;
+    this.isWebSearchAllowedForMode = isWebSearchAllowedForMode;
     this.buildSystemPrompt = buildSystemPrompt;
     this.temperature = temperature;
     this.topP = topP;
@@ -84,124 +53,24 @@ class LLMClient {
       ? webSearchCharacterIds.map((v) => String(v || '').trim().toLowerCase()).filter(Boolean)
       : ['luna'];
     this.webSearchMaxItems = Math.max(1, Number(webSearchMaxItems || 3));
-    this.webSearchTimeoutMs = Math.max(3000, Number(process.env.ASSISTANT_WEB_SEARCH_TIMEOUT_MS || 9000));
-    this.openaiRetryMaxAttempts = Math.max(1, Number(process.env.ASSISTANT_OPENAI_RETRY_ATTEMPTS || 3));
-    this.openaiRetryBaseDelayMs = Math.max(200, Number(process.env.ASSISTANT_OPENAI_RETRY_BASE_DELAY_MS || 1200));
-    this.openaiRetryMaxDelayMs = Math.max(this.openaiRetryBaseDelayMs, Number(process.env.ASSISTANT_OPENAI_RETRY_MAX_DELAY_MS || 10000));
-    this.openaiMinIntervalMs = Math.max(0, Number(process.env.ASSISTANT_OPENAI_MIN_INTERVAL_MS || 1200));
-    this.lastOpenAIRequestAt = 0;
-    this.openaiRequestChain = Promise.resolve();
+    this.webSearchTimeoutMs = Math.max(3000, Number(env.ASSISTANT_WEB_SEARCH_TIMEOUT_MS || 9000));
   }
 
-  sleep(ms = 0) {
-    const waitMs = Math.max(0, Number(ms || 0));
-    return new Promise((resolve) => setTimeout(resolve, waitMs));
+  getProviderChain(user = null, mode = 'normal') {
+    return this.providerRouter.getChain({
+      routing: this.getRouting() || {},
+      mode,
+      characterId: String(user?.profile?.characterId || '').trim().toLowerCase(),
+      localOnly: !!this.isLocalOnly(user, mode),
+    });
   }
 
-  parseRetryAfterMs(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return null;
-
-    const asNumber = Number(raw);
-    if (Number.isFinite(asNumber) && asNumber >= 0) {
-      return Math.round(asNumber * 1000);
+  isEnabled(user = null, mode = 'normal') {
+    try {
+      return this.getProviderChain(user, mode).some((provider) => provider.isConfigured());
+    } catch {
+      return false;
     }
-
-    const asDateTs = Date.parse(raw);
-    if (Number.isFinite(asDateTs)) {
-      return Math.max(0, asDateTs - Date.now());
-    }
-
-    return null;
-  }
-
-  getRetryDelayMs(attempt = 1, retryAfterMs = null) {
-    const exponentialDelay = Math.min(
-      this.openaiRetryMaxDelayMs,
-      this.openaiRetryBaseDelayMs * (2 ** Math.max(0, attempt - 1)),
-    );
-    const jitter = Math.floor(Math.random() * 350);
-    const computed = exponentialDelay + jitter;
-    if (!Number.isFinite(retryAfterMs) || retryAfterMs === null) {
-      return computed;
-    }
-    return Math.max(computed, Math.min(this.openaiRetryMaxDelayMs, Math.max(0, retryAfterMs)));
-  }
-
-  isRetryableOpenAIStatus(statusCode = 0) {
-    return statusCode === 429 || (statusCode >= 500 && statusCode <= 599);
-  }
-
-  async ensureOpenAIRequestSpacing() {
-    if (this.openaiMinIntervalMs <= 0) return;
-    const now = Date.now();
-    const elapsed = now - this.lastOpenAIRequestAt;
-    const waitMs = this.openaiMinIntervalMs - elapsed;
-    if (waitMs > 0) {
-      await this.sleep(waitMs);
-    }
-    this.lastOpenAIRequestAt = Date.now();
-  }
-
-  enqueueOpenAIRequest(task) {
-    const runTask = async () => {
-      await this.ensureOpenAIRequestSpacing();
-      return task();
-    };
-
-    const queued = this.openaiRequestChain.then(runTask, runTask);
-    this.openaiRequestChain = queued.then(() => undefined, () => undefined);
-    return queued;
-  }
-
-  async postOpenAIWithRetry(payload) {
-    let lastStatus = 0;
-    let lastBody = '';
-
-    for (let attempt = 1; attempt <= this.openaiRetryMaxAttempts; attempt += 1) {
-      const response = await this.enqueueOpenAIRequest(() => fetch(`${this.openaiBaseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.openaiApiKey}`,
-        },
-        body: JSON.stringify(payload),
-      }));
-
-      if (response.ok) {
-        return response;
-      }
-
-      lastStatus = response.status;
-      lastBody = await response.text().catch(() => '');
-      const retryAfterHeader = response.headers?.get('retry-after');
-      const retryAfterMs = this.parseRetryAfterMs(retryAfterHeader);
-      const canRetry = this.isRetryableOpenAIStatus(response.status) && attempt < this.openaiRetryMaxAttempts;
-
-      if (canRetry) {
-        const delayMs = this.getRetryDelayMs(attempt, retryAfterMs);
-        await this.sleep(delayMs);
-        continue;
-      }
-
-      break;
-    }
-
-    if (lastStatus === 429) {
-      throw new Error('LLM request failed with 429 (rate limited). Bitte in wenigen Sekunden erneut versuchen.');
-    }
-
-    const shortBody = String(lastBody || '').slice(0, 180).trim();
-    throw new Error(shortBody
-      ? `LLM request failed with ${lastStatus}: ${shortBody}`
-      : `LLM request failed with ${lastStatus}`);
-  }
-
-  isEnabled() {
-    if (this.provider === 'ollama') {
-      return true;
-    }
-    return !!this.openaiApiKey;
   }
 
   isWebSearchCharacterAllowed(user = null) {
@@ -270,9 +139,10 @@ class LLMClient {
     ].join('\n');
   }
 
-  previewWebSearch(user, message = '') {
+  previewWebSearch(user, message = '', mode = 'normal') {
     const query = String(message || '').trim();
-    const enabled = !!this.webSearchEnabled;
+    // Secret/adult modes run local-only without tools, so no web requests leave the device.
+    const enabled = !!this.webSearchEnabled && !!this.isWebSearchAllowedForMode(user, mode);
     const explicitWebCommand = /\b(google|web|internet|recherch)\b/i.test(query);
     const characterAllowed = this.isWebSearchCharacterAllowed(user) || explicitWebCommand;
     const triggerMatched = this.shouldUseWebSearch(query);
@@ -458,8 +328,8 @@ class LLMClient {
     }
   }
 
-  async maybeGetWebContext(user, message) {
-    const preview = this.previewWebSearch(user, message);
+  async maybeGetWebContext(user, message, mode = 'normal') {
+    const preview = this.previewWebSearch(user, message, mode);
     if (!preview.shouldSearch) return '';
 
     try {
@@ -471,111 +341,48 @@ class LLMClient {
     }
   }
 
+  buildMessages(user, message, snapshot, recentHistory = [], mode = 'normal', transientSystemInstruction = '', webContext = '') {
+    return [
+      { role: 'system', content: this.buildSystemPrompt(user, mode) },
+      {
+        role: 'system',
+        content: `Kontext Snapshot: ${JSON.stringify(snapshot)}. User-Profil: ${JSON.stringify(user.profile)}.`,
+      },
+      ...(transientSystemInstruction ? [{ role: 'system', content: transientSystemInstruction }] : []),
+      ...this.buildWebContextMessages(webContext),
+      ...recentHistory,
+      { role: 'user', content: message },
+    ];
+  }
+
+  // Tries the routed provider first, then the local fallback.
   async chat(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
-    if (this.provider === 'ollama') {
-      return this.callOllama(user, message, snapshot, recentHistory, mode, transientSystemInstruction);
-    }
-    return this.callOpenAICompatible(user, message, snapshot, recentHistory, mode, transientSystemInstruction);
-  }
+    const chain = this.getProviderChain(user, mode);
+    const webContext = await this.maybeGetWebContext(user, message, mode);
+    const messages = this.buildMessages(user, message, snapshot, recentHistory, mode, transientSystemInstruction, webContext);
 
-  async callOllama(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
-    let ollamaClient;
-    try {
-      const importCandidates = [
-        () => requireFromModule('ollama'),
-        ...requireCandidates.map((resolver) => () => resolver('ollama')),
-      ];
-
-      let imported = null;
-      for (const load of importCandidates) {
-        try {
-          imported = load();
-          if (imported) break;
-        } catch {
-          // try next
-        }
+    const errors = [];
+    for (let index = 0; index < chain.length; index += 1) {
+      const provider = chain[index];
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await provider.complete({ messages, temperature: this.temperature, topP: this.topP });
+        return {
+          reply: result.text,
+          meta: {
+            webSearchUsed: !!webContext,
+            provider: result.provider,
+            model: result.model,
+            fallbackUsed: index > 0,
+            ...(errors.length ? { fallbackReason: errors[errors.length - 1] } : {}),
+          },
+        };
+      } catch (error) {
+        errors.push(String(error?.message || error).slice(0, 200));
       }
-
-      ollamaClient = imported?.default || imported;
-      if (!ollamaClient) {
-        throw new Error('Ollama module unresolved');
-      }
-    } catch {
-      throw new Error('Ollama package not installed. Run: npm i ollama in host project.');
     }
 
-    process.env.OLLAMA_HOST = this.ollamaHost;
-    const webContext = await this.maybeGetWebContext(user, message);
-
-    const response = await ollamaClient.chat({
-      model: this.model,
-      messages: [
-        { role: 'system', content: this.buildSystemPrompt(user, mode) },
-        {
-          role: 'system',
-          content: `Kontext Snapshot: ${JSON.stringify(snapshot)}. User-Profil: ${JSON.stringify(user.profile)}.`,
-        },
-        ...(transientSystemInstruction ? [{ role: 'system', content: transientSystemInstruction }] : []),
-        ...this.buildWebContextMessages(webContext),
-        ...recentHistory,
-        { role: 'user', content: message },
-      ],
-      options: {
-        temperature: this.temperature,
-        top_p: this.topP,
-      },
-    });
-
-    const reply = String(response?.message?.content || '').trim();
-    if (!reply) {
-      throw new Error('LLM returned an empty response.');
-    }
-
-    return {
-      reply,
-      meta: {
-        webSearchUsed: !!webContext,
-      },
-    };
-  }
-
-  async callOpenAICompatible(user, message, snapshot, recentHistory, mode = 'normal', transientSystemInstruction = '') {
-    if (!this.openaiApiKey) {
-      throw new Error('OPENAI_API_KEY fehlt für den OpenAI-kompatiblen Provider.');
-    }
-
-    const webContext = await this.maybeGetWebContext(user, message);
-
-    const payload = {
-      model: this.model,
-      temperature: this.temperature,
-      messages: [
-        { role: 'system', content: this.buildSystemPrompt(user, mode) },
-        {
-          role: 'system',
-          content: `Kontext Snapshot: ${JSON.stringify(snapshot)}. User-Profil: ${JSON.stringify(user.profile)}.`,
-        },
-        ...(transientSystemInstruction ? [{ role: 'system', content: transientSystemInstruction }] : []),
-        ...this.buildWebContextMessages(webContext),
-        ...recentHistory,
-        { role: 'user', content: message },
-      ],
-    };
-
-    const response = await this.postOpenAIWithRetry(payload);
-
-    const data = await response.json();
-    const reply = String(data?.choices?.[0]?.message?.content || '').trim();
-    if (!reply) {
-      throw new Error('LLM returned an empty response.');
-    }
-
-    return {
-      reply,
-      meta: {
-        webSearchUsed: !!webContext,
-      },
-    };
+    throw new Error(errors[errors.length - 1] || 'LLM request failed.');
   }
 }
 
